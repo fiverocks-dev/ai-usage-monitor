@@ -50,7 +50,7 @@ Antigravity 也是可选功能。若要显示其用量，请安装并登录 Goog
 
 ## 安装
 
-如需按用户安装，请从[最新版本](https://github.com/upstream-ray/codex-usage-monitor/releases/latest)下载 `install.ps1`，然后运行：
+如需按用户安装，请从[最新版本](https://github.com/fiverocks-dev/ai-usage-monitor/releases/latest)下载 `install.ps1`，然后运行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -194,8 +194,8 @@ Codex 用量来自本地 Codex 安装中已登录的账户。可选的 Claude Co
 
 注意：
 
-- 如果 Claude Code 令牌过期，应用可能会在后台调用本地 Claude CLI 进行刷新
-- 如果 Codex 令牌过期，应用可能会在后台调用本地 Codex CLI 进行刷新。监控器本身不会写入 `auth.json`，任何凭据更新都由 Codex CLI 完成
+- 如果 Claude Code 令牌过期，请重新登录 Claude Code。监控器会等待凭据发生变化，不会代替你启动 Claude Code。
+- 如果 Codex 令牌过期，请重新登录 Codex。监控器不会代替你启动 Codex，也不会写入 `auth.json`。
 - 如果 Antigravity 令牌过期，请打开 Antigravity 并重新登录。监控器不会写入 Windows 凭据管理器
 - 便携版可以从本仓库下载最新版本进行自更新
 - 代理必须可信，因为代理转发的用量请求会在 TLS 连接内包含 OAuth Bearer 令牌

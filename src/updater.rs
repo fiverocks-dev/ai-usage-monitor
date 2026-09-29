@@ -611,6 +611,14 @@ mod tests {
     }
 
     #[test]
+    fn update_repository_is_owned_by_fiverocks_dev() {
+        assert_eq!(
+            github_repo().unwrap(),
+            ("fiverocks-dev", "ai-usage-monitor")
+        );
+    }
+
+    #[test]
     fn parses_release_checksum_with_filename() {
         let hash = "75761c6dff9c833d0a6b7a09992ce53bd417cf4a5234c065e06b1968171e2222";
         assert_eq!(
