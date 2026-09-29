@@ -50,7 +50,7 @@ If you use Claude Code through WSL, that is supported too. The monitor can read 
 
 ## Install
 
-For a per-user installation, download `install.ps1` from the [latest release](https://github.com/upstream-ray/codex-usage-monitor/releases/latest), then run:
+For a per-user installation, download `install.ps1` from the [latest release](https://github.com/fiverocks-dev/ai-usage-monitor/releases/latest), then run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -194,8 +194,8 @@ What it does **not** do:
 
 Notes:
 
-- If your Claude Code token is expired, the app may ask the local Claude CLI to refresh it in the background
-- If your Codex token is expired, the app may ask the local Codex CLI to refresh it in the background. The monitor does not write `auth.json` itself; any credential update is handled by the Codex CLI.
+- If your Claude Code token is expired, sign in again with Claude Code. The monitor waits for the credential source to change and does not launch Claude Code on your behalf.
+- If your Codex token is expired, sign in again with Codex. The monitor does not launch Codex or write `auth.json` on your behalf.
 - If your Antigravity token is expired, open Antigravity and sign in again. The monitor does not write Windows Credential Manager entries itself.
 - Portable installs can update themselves by downloading the latest release from this repository
 - Proxies should be trusted because proxied usage requests include your OAuth bearer token inside the TLS connection
