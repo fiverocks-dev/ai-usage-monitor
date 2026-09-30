@@ -2012,6 +2012,7 @@ fn render_layered() {
 }
 
 /// Paint all widget content onto a DC with a given background color.
+#[allow(clippy::too_many_arguments)]
 fn paint_content(
     hdc: HDC,
     width: i32,
@@ -3159,10 +3160,12 @@ unsafe extern "system" fn wnd_proc(
                                         s.show_codex = !s.show_codex;
                                     }
                                 }
-                                IDM_MODEL_ANTIGRAVITY => {
-                                    if s.show_claude_code || s.show_codex || !s.show_antigravity {
-                                        s.show_antigravity = !s.show_antigravity;
-                                    }
+                                IDM_MODEL_ANTIGRAVITY
+                                    if s.show_claude_code
+                                        || s.show_codex
+                                        || !s.show_antigravity =>
+                                {
+                                    s.show_antigravity = !s.show_antigravity;
                                 }
                                 _ => {}
                             }
@@ -3773,6 +3776,7 @@ fn paint(hdc: HDC, hwnd: HWND) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_row(
     hdc: HDC,
     x: i32,
@@ -3886,6 +3890,7 @@ fn model_usage_width(segment_count: i32, text_width: i32) -> i32 {
         + sc(text_width)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_usage_bar(
     hdc: HDC,
     bar_x: i32,
