@@ -34,6 +34,7 @@ pub(super) const STRINGS: Strings = Strings {
     show_widget: "ウィジェットを表示",
     session_window: "5h",
     weekly_window: "7d",
+    remaining_percent: "残り{pct}%",
     now: "今",
     day_suffix: "日",
     hour_suffix: "時間",

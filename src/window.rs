@@ -918,7 +918,7 @@ fn refresh_usage_texts(state: &mut AppState) {
     }
 
     let strings = state.language.strings();
-    let show_remaining = state.language == LanguageId::SimplifiedChinese;
+    let show_absolute_reset_time = state.language == LanguageId::SimplifiedChinese;
     let Some(data) = state.data.as_ref() else {
         return;
     };
@@ -927,13 +927,13 @@ fn refresh_usage_texts(state: &mut AppState) {
         state.session_text = poller::format_line(
             &claude_code.session,
             strings,
-            show_remaining,
+            show_absolute_reset_time,
             poller::UsageWindowKind::Session,
         );
         state.weekly_text = poller::format_line(
             &claude_code.weekly,
             strings,
-            show_remaining,
+            show_absolute_reset_time,
             poller::UsageWindowKind::Weekly,
         );
     } else if state.show_claude_code {
@@ -945,13 +945,13 @@ fn refresh_usage_texts(state: &mut AppState) {
         state.codex_session_text = poller::format_line(
             &codex.session,
             strings,
-            show_remaining,
+            show_absolute_reset_time,
             poller::UsageWindowKind::Session,
         );
         state.codex_weekly_text = poller::format_line(
             &codex.weekly,
             strings,
-            show_remaining,
+            show_absolute_reset_time,
             poller::UsageWindowKind::Weekly,
         );
     } else if state.show_codex {
@@ -963,7 +963,7 @@ fn refresh_usage_texts(state: &mut AppState) {
         state.antigravity_session_text = poller::format_line(
             &antigravity.session,
             strings,
-            show_remaining,
+            show_absolute_reset_time,
             poller::UsageWindowKind::Session,
         );
         state.antigravity_weekly_text =
@@ -973,7 +973,7 @@ fn refresh_usage_texts(state: &mut AppState) {
                 poller::format_line(
                     &antigravity.weekly,
                     strings,
-                    show_remaining,
+                    show_absolute_reset_time,
                     poller::UsageWindowKind::Weekly,
                 )
             };
@@ -1416,7 +1416,9 @@ const DIVIDER_RIGHT_MARGIN: i32 = 10;
 const LABEL_WIDTH: i32 = 18;
 const LABEL_RIGHT_MARGIN: i32 = 10;
 const BAR_RIGHT_MARGIN: i32 = 4;
-const TEXT_WIDTH: i32 = 62;
+const PROVIDER_BADGE_WIDTH: i32 = 18;
+const PROVIDER_BADGE_GAP: i32 = 3;
+const TEXT_WIDTH: i32 = 74;
 const SIMPLIFIED_CHINESE_LABEL_WIDTH: i32 = 20;
 const SIMPLIFIED_CHINESE_TEXT_WIDTH: i32 = 126;
 const MODEL_RIGHT_MARGIN: i32 = 3;
@@ -1465,18 +1467,17 @@ fn usage_layout_widths(language: LanguageId) -> (i32, i32) {
     }
 }
 
-fn usage_percent_for_display(language: LanguageId, used_percentage: f64) -> f64 {
-    if language == LanguageId::SimplifiedChinese {
-        poller::remaining_percentage(used_percentage)
-    } else {
-        used_percentage.clamp(0.0, 100.0)
-    }
+fn usage_percent_for_display(used_percentage: f64) -> f64 {
+    poller::remaining_percentage(used_percentage)
 }
 
 fn total_widget_width_for(active_models: i32, language: LanguageId) -> i32 {
     let bar_segments = row_bar_segment_count(active_models);
     let (label_width, text_width) = usage_layout_widths(language);
-    let model_width = (sc(SEGMENT_W) + sc(SEGMENT_GAP)) * bar_segments - sc(SEGMENT_GAP)
+    let model_width = sc(PROVIDER_BADGE_WIDTH)
+        + sc(PROVIDER_BADGE_GAP)
+        + (sc(SEGMENT_W) + sc(SEGMENT_GAP)) * bar_segments
+        - sc(SEGMENT_GAP)
         + sc(BAR_RIGHT_MARGIN)
         + sc(text_width);
 
@@ -2045,12 +2046,12 @@ fn paint_content(
     antigravity_accent: &Color,
 ) {
     unsafe {
-        let session_pct = usage_percent_for_display(language, session_pct);
-        let weekly_pct = usage_percent_for_display(language, weekly_pct);
-        let codex_session_pct = usage_percent_for_display(language, codex_session_pct);
-        let codex_weekly_pct = usage_percent_for_display(language, codex_weekly_pct);
-        let antigravity_session_pct = usage_percent_for_display(language, antigravity_session_pct);
-        let antigravity_weekly_pct = usage_percent_for_display(language, antigravity_weekly_pct);
+        let session_pct = usage_percent_for_display(session_pct);
+        let weekly_pct = usage_percent_for_display(weekly_pct);
+        let codex_session_pct = usage_percent_for_display(codex_session_pct);
+        let codex_weekly_pct = usage_percent_for_display(codex_weekly_pct);
+        let antigravity_session_pct = usage_percent_for_display(antigravity_session_pct);
+        let antigravity_weekly_pct = usage_percent_for_display(antigravity_weekly_pct);
         let (label_width, text_width) = usage_layout_widths(language);
 
         let client_rect = RECT {
@@ -3838,9 +3839,10 @@ fn draw_row(
 
         let mut model_x = x + sc(label_width) + sc(LABEL_RIGHT_MARGIN);
         if show_claude_code {
+            draw_provider_badge(hdc, model_x, y, "CL", claude_accent);
             draw_usage_bar(
                 hdc,
-                model_x,
+                model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
                 y,
                 segment_count,
                 claude_percent,
@@ -3853,9 +3855,10 @@ fn draw_row(
             model_x += model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN);
         }
         if show_codex {
+            draw_provider_badge(hdc, model_x, y, "CX", codex_accent);
             draw_usage_bar(
                 hdc,
-                model_x,
+                model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
                 y,
                 segment_count,
                 codex_percent,
@@ -3868,9 +3871,10 @@ fn draw_row(
             model_x += model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN);
         }
         if show_antigravity {
+            draw_provider_badge(hdc, model_x, y, "AG", antigravity_accent);
             draw_usage_bar(
                 hdc,
-                model_x,
+                model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
                 y,
                 segment_count,
                 antigravity_percent,
@@ -3885,9 +3889,31 @@ fn draw_row(
 }
 
 fn model_usage_width(segment_count: i32, text_width: i32) -> i32 {
-    (sc(SEGMENT_W) + sc(SEGMENT_GAP)) * segment_count - sc(SEGMENT_GAP)
+    sc(PROVIDER_BADGE_WIDTH)
+        + sc(PROVIDER_BADGE_GAP)
+        + (sc(SEGMENT_W) + sc(SEGMENT_GAP)) * segment_count
+        - sc(SEGMENT_GAP)
         + sc(BAR_RIGHT_MARGIN)
         + sc(text_width)
+}
+
+fn draw_provider_badge(hdc: HDC, x: i32, y: i32, label: &str, color: &Color) {
+    unsafe {
+        let _ = SetTextColor(hdc, COLORREF(color.to_colorref()));
+        let mut label_wide: Vec<u16> = label.encode_utf16().collect();
+        let mut rect = RECT {
+            left: x,
+            top: y,
+            right: x + sc(PROVIDER_BADGE_WIDTH),
+            bottom: y + sc(SEGMENT_H),
+        };
+        let _ = DrawTextW(
+            hdc,
+            &mut label_wide,
+            &mut rect,
+            DT_CENTER | DT_VCENTER | DT_SINGLELINE,
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1367,14 +1367,17 @@ fn is_leap(y: u64) -> bool {
 pub fn format_line(
     section: &UsageSection,
     strings: Strings,
-    show_remaining_in_chinese: bool,
+    show_absolute_reset_time: bool,
     window: UsageWindowKind,
 ) -> String {
-    if show_remaining_in_chinese {
+    if show_absolute_reset_time {
         return format_simplified_chinese_line(section, window);
     }
 
-    let pct = format!("{:.0}%", section.percentage);
+    let remaining = remaining_percentage(section.percentage);
+    let pct = strings
+        .remaining_percent
+        .replace("{pct}", &format!("{remaining:.0}"));
     let cd = format_countdown(section.resets_at, strings);
     if cd.is_empty() {
         pct
@@ -1582,6 +1585,25 @@ mod tests {
         assert_eq!(
             PollError::NetworkUnavailable.category(),
             "network_unavailable"
+        );
+    }
+
+    #[test]
+    fn compact_line_labels_remaining_usage() {
+        let strings = crate::localization::LanguageId::English.strings();
+        let section = UsageSection {
+            percentage: 30.0,
+            resets_at: None,
+        };
+        assert_eq!(
+            format_line(&section, strings, false, UsageWindowKind::Session),
+            "70% left"
+        );
+
+        let strings = crate::localization::LanguageId::Korean.strings();
+        assert_eq!(
+            format_line(&section, strings, false, UsageWindowKind::Session),
+            "70% 남음"
         );
     }
 

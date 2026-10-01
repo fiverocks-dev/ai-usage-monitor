@@ -34,6 +34,7 @@ pub(super) const STRINGS: Strings = Strings {
     show_widget: "顯示小工具",
     session_window: "5h",
     weekly_window: "7d",
+    remaining_percent: "剩餘{pct}%",
     now: "現在",
     day_suffix: "天",
     hour_suffix: "時",

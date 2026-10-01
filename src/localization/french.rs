@@ -34,6 +34,7 @@ pub(super) const STRINGS: Strings = Strings {
     show_widget: "Afficher le widget",
     session_window: "5h",
     weekly_window: "7d",
+    remaining_percent: "{pct}% restant",
     now: "maintenant",
     day_suffix: "j",
     hour_suffix: "h",
