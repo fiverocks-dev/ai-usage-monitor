@@ -212,6 +212,7 @@ pub struct Strings {
     pub show_widget: &'static str,
     pub session_window: &'static str,
     pub weekly_window: &'static str,
+    pub remaining_percent: &'static str,
     pub now: &'static str,
     pub day_suffix: &'static str,
     pub hour_suffix: &'static str,
