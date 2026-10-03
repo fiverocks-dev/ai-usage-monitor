@@ -8,7 +8,7 @@ homepage = "https://github.com/fiverocks-dev/ai-usage-monitor"
 repository = "https://github.com/fiverocks-dev/ai-usage-monitor"
 
 [package.metadata.winres]
-CompanyName = "Ray"
+CompanyName = "fiverocks-dev"
 ProductName = "AI Usage"
 FileDescription = "Lightweight AI usage monitor for Windows"
 OriginalFilename = "ai-usage.exe"
