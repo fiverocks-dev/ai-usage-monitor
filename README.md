@@ -56,11 +56,13 @@ For a per-user installation, download `install.ps1` from the [latest release](ht
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The installer verifies the release SHA256 and installs to `%LOCALAPPDATA%\Programs\CodexUsage` without administrator access. It adds a Start menu shortcut and an entry in Windows Installed Apps.
+The installer verifies the release SHA256 and installs to `%LOCALAPPDATA%\Programs\AIUsage` without administrator access. It adds a Start menu shortcut and an entry in Windows Installed Apps.
 
-For portable use, download `ai-usage.exe` from the same release and run it from any user-writable directory. You can also build it locally:
+For portable use, download `ai-usage.exe` from the same release and run it from any user-writable directory. You can also build it locally. Regenerate the app icon first so the executable uses the current branding:
 
 ```powershell
+python -m pip install Pillow==11.3.0
+python scripts/generate_icons.py
 cargo build --release
 ```
 
