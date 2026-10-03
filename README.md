@@ -5,7 +5,7 @@
 
 # AI Usage
 
-<img src=".github/ai-usage-icon.png" alt="AI Usage icon" width="96" height="96">
+<img src="src/icons/256.svg" alt="AI Usage icon" width="96" height="96">
 
 ![Screenshot](.github/animation.gif)
 
