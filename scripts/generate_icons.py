@@ -1,4 +1,4 @@
-"""Generate deterministic PNG and ICO assets from the Codex Usage icon geometry."""
+"""Generate deterministic PNG and ICO assets for the AI Usage app icon."""
 
 from pathlib import Path
 from PIL import Image, ImageDraw
@@ -6,26 +6,25 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "src" / "icons"
 GITHUB_DIR = ROOT / ".github"
-VERIFY_PATH = ROOT / "target" / "codex-usage-icon-verification.png"
+VERIFY_PATH = ROOT / "target" / "ai-usage-icon-verification.png"
 
 NAVY_TOP = (20, 38, 64, 255)
 NAVY_BOTTOM = (7, 15, 28, 255)
+TRACK = "#334155"
 CYAN = "#36C5F0"
-WHITE = "#F8FAFC"
+VIOLET = "#A78BFA"
 LIME = "#A3E635"
+WHITE = "#F8FAFC"
 
 
 def render_icon(size: int) -> Image.Image:
     scale = max(4, 1024 // size)
     canvas = size * scale
     image = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
 
     def px(value: float) -> int:
         return round(value * canvas / 256)
 
-    # A restrained vertical gradient keeps the large icon dimensional while
-    # preserving a solid silhouette when Windows scales it down to 16 px.
     gradient = Image.new("RGBA", (canvas, canvas))
     pixels = gradient.load()
     for y in range(canvas):
@@ -33,6 +32,7 @@ def render_icon(size: int) -> Image.Image:
         color = tuple(round(a + (b - a) * t) for a, b in zip(NAVY_TOP, NAVY_BOTTOM))
         for x in range(canvas):
             pixels[x, y] = color
+
     mask = Image.new("L", (canvas, canvas), 0)
     ImageDraw.Draw(mask).rounded_rectangle(
         (0, 0, canvas - 1, canvas - 1), radius=px(58), fill=255
@@ -40,12 +40,28 @@ def render_icon(size: int) -> Image.Image:
     image.alpha_composite(Image.composite(gradient, Image.new("RGBA", gradient.size), mask))
     draw = ImageDraw.Draw(image)
 
-    # The open C-shaped ring is readable at every ICO size and represents a
-    # quota window without looking like a calculator or a battery widget.
-    arc_box = (px(45), px(45), px(211), px(211))
-    draw.arc(arc_box, 42, 318, fill=WHITE, width=px(28))
-    draw.arc(arc_box, 42, 128, fill=CYAN, width=px(28))
-    draw.ellipse((px(190), px(112), px(220), px(142)), fill=LIME)
+    # Three independent quota meters represent multiple AI providers.
+    # Their unequal fill levels make the icon read as a usage monitor even at 16 px.
+    for x, fill_top, color in zip(
+        (58, 111, 164),
+        (78, 108, 137),
+        (CYAN, VIOLET, LIME),
+    ):
+        draw.rounded_rectangle(
+            (px(x), px(52), px(x + 34), px(204)),
+            radius=px(17),
+            fill=TRACK,
+        )
+        draw.rounded_rectangle(
+            (px(x), px(fill_top), px(x + 34), px(204)),
+            radius=px(17),
+            fill=color,
+        )
+        draw.rounded_rectangle(
+            (px(x + 7), px(fill_top + 7), px(x + 27), px(fill_top + 12)),
+            radius=px(3),
+            fill=WHITE,
+        )
 
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
@@ -62,9 +78,19 @@ def main() -> None:
     rendered[256].save(
         ICON_DIR / "icon.ico",
         format="ICO",
-        sizes=[(16, 16), (20, 20), (24, 24), (32, 32), (40, 40), (48, 48), (64, 64), (128, 128), (256, 256)],
+        sizes=[
+            (16, 16),
+            (20, 20),
+            (24, 24),
+            (32, 32),
+            (40, 40),
+            (48, 48),
+            (64, 64),
+            (128, 128),
+            (256, 256),
+        ],
     )
-    rendered[256].save(GITHUB_DIR / "codex-usage-icon.png", optimize=True)
+    rendered[256].save(GITHUB_DIR / "ai-usage-icon.png", optimize=True)
 
     sheet = Image.new("RGB", (760, 360), "#CBD5E1")
     draw = ImageDraw.Draw(sheet)
