@@ -64,10 +64,14 @@ struct AppState {
     codex_session_text: String,
     codex_weekly_percent: f64,
     codex_weekly_text: String,
-    antigravity_session_percent: f64,
-    antigravity_session_text: String,
-    antigravity_weekly_percent: f64,
-    antigravity_weekly_text: String,
+    antigravity_gemini_session_percent: f64,
+    antigravity_gemini_session_text: String,
+    antigravity_gemini_weekly_percent: f64,
+    antigravity_gemini_weekly_text: String,
+    antigravity_claude_session_percent: f64,
+    antigravity_claude_session_text: String,
+    antigravity_claude_weekly_percent: f64,
+    antigravity_claude_weekly_text: String,
     claude_code_available: bool,
     show_claude_code: bool,
     show_codex: bool,
@@ -595,8 +599,21 @@ fn collect_low_quota_alerts(state: &mut AppState, data: &AppUsageData) -> Vec<Qu
                 threshold,
                 state.language,
                 tray_icon::TrayIconKind::Antigravity,
-                "antigravity",
-                strings.antigravity_model,
+                "antigravity-gemini",
+                "Antigravity Gemini",
+                usage,
+                strings,
+            );
+        }
+        if let Some(usage) = data.antigravity_claude.as_ref() {
+            append_provider_alerts(
+                &mut alerts,
+                &mut state.notified_quota_windows,
+                threshold,
+                state.language,
+                tray_icon::TrayIconKind::Antigravity,
+                "antigravity-claude",
+                "Antigravity Claude",
                 usage,
                 strings,
             );
@@ -721,9 +738,16 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
             }
             if s.show_antigravity {
                 services.push(service_tooltip(
-                    strings.antigravity_model,
-                    &s.antigravity_session_text,
-                    &s.antigravity_weekly_text,
+                    "AG-G",
+                    &s.antigravity_gemini_session_text,
+                    &s.antigravity_gemini_weekly_text,
+                    s.show_session_window,
+                    s.show_weekly_window,
+                ));
+                services.push(service_tooltip(
+                    "AG-C",
+                    &s.antigravity_claude_session_text,
+                    &s.antigravity_claude_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
                 ));
@@ -965,27 +989,52 @@ fn refresh_usage_texts(state: &mut AppState) {
         state.codex_weekly_text = "!".to_string();
     }
 
-    if let Some(antigravity) = data.antigravity.as_ref() {
-        state.antigravity_session_text = poller::format_line(
-            &antigravity.session,
+    refresh_antigravity_family_texts(
+        data.antigravity.as_ref(),
+        state.show_antigravity,
+        strings,
+        show_absolute_reset_time,
+        &mut state.antigravity_gemini_session_text,
+        &mut state.antigravity_gemini_weekly_text,
+    );
+    refresh_antigravity_family_texts(
+        data.antigravity_claude.as_ref(),
+        state.show_antigravity,
+        strings,
+        show_absolute_reset_time,
+        &mut state.antigravity_claude_session_text,
+        &mut state.antigravity_claude_weekly_text,
+    );
+}
+
+fn refresh_antigravity_family_texts(
+    usage: Option<&crate::models::UsageData>,
+    show_antigravity: bool,
+    strings: Strings,
+    show_absolute_reset_time: bool,
+    session_text: &mut String,
+    weekly_text: &mut String,
+) {
+    if let Some(usage) = usage {
+        *session_text = poller::format_line(
+            &usage.session,
             strings,
             show_absolute_reset_time,
             poller::UsageWindowKind::Session,
         );
-        state.antigravity_weekly_text =
-            if antigravity.weekly.resets_at.is_none() && antigravity.weekly.percentage == 0.0 {
-                "--".to_string()
-            } else {
-                poller::format_line(
-                    &antigravity.weekly,
-                    strings,
-                    show_absolute_reset_time,
-                    poller::UsageWindowKind::Weekly,
-                )
-            };
-    } else if state.show_antigravity {
-        state.antigravity_session_text = "!".to_string();
-        state.antigravity_weekly_text = "!".to_string();
+        *weekly_text = if usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0 {
+            "--".to_string()
+        } else {
+            poller::format_line(
+                &usage.weekly,
+                strings,
+                show_absolute_reset_time,
+                poller::UsageWindowKind::Weekly,
+            )
+        };
+    } else if show_antigravity {
+        *session_text = "--".to_string();
+        *weekly_text = "--".to_string();
     }
 }
 
@@ -1426,9 +1475,11 @@ const SEGMENT_COUNT: i32 = 10;
 const LEFT_DIVIDER_W: i32 = 3;
 const DIVIDER_RIGHT_MARGIN: i32 = 10;
 const LABEL_WIDTH: i32 = 18;
-const LABEL_RIGHT_MARGIN: i32 = 10;
+const LABEL_RIGHT_MARGIN: i32 = 4;
+const TIME_SEPARATOR_WIDTH: i32 = 1;
+const TIME_SEPARATOR_RIGHT_MARGIN: i32 = 6;
 const BAR_RIGHT_MARGIN: i32 = 4;
-const PROVIDER_BADGE_WIDTH: i32 = 18;
+const PROVIDER_BADGE_WIDTH: i32 = 30;
 const PROVIDER_BADGE_GAP: i32 = 3;
 const TEXT_WIDTH: i32 = 74;
 const SIMPLIFIED_CHINESE_LABEL_WIDTH: i32 = 20;
@@ -1457,7 +1508,7 @@ fn cursor_is_on_drag_handle(hwnd: HWND) -> bool {
 }
 
 fn active_model_count(show_claude_code: bool, show_codex: bool, show_antigravity: bool) -> i32 {
-    (show_claude_code as i32 + show_codex as i32 + show_antigravity as i32).max(1)
+    (show_claude_code as i32 + show_codex as i32 + (show_antigravity as i32 * 2)).max(1)
 }
 
 fn row_bar_segment_count(active_models: i32) -> i32 {
@@ -1497,6 +1548,8 @@ fn total_widget_width_for(active_models: i32, language: LanguageId) -> i32 {
         + sc(DIVIDER_RIGHT_MARGIN)
         + sc(label_width)
         + sc(LABEL_RIGHT_MARGIN)
+        + sc(TIME_SEPARATOR_WIDTH)
+        + sc(TIME_SEPARATOR_RIGHT_MARGIN)
         + model_width * active_models
         + sc(MODEL_RIGHT_MARGIN) * (active_models - 1)
         + sc(RIGHT_MARGIN)
@@ -1541,8 +1594,12 @@ fn codex_accent_color(is_dark: bool) -> Color {
     }
 }
 
-fn antigravity_accent_color() -> Color {
+fn antigravity_gemini_accent_color() -> Color {
     Color::from_hex("#4285F4")
+}
+
+fn antigravity_claude_accent_color() -> Color {
+    Color::from_hex("#D97757")
 }
 
 fn claude_usage_text_color(is_dark: bool) -> Color {
@@ -1561,11 +1618,19 @@ fn codex_usage_text_color(is_dark: bool) -> Color {
     }
 }
 
-fn antigravity_usage_text_color(is_dark: bool) -> Color {
+fn antigravity_gemini_usage_text_color(is_dark: bool) -> Color {
     if is_dark {
         Color::from_hex("#8AB4F8")
     } else {
         Color::from_hex("#1967D2")
+    }
+}
+
+fn antigravity_claude_usage_text_color(is_dark: bool) -> Color {
+    if is_dark {
+        Color::from_hex("#F09A7A")
+    } else {
+        Color::from_hex("#A94F32")
     }
 }
 
@@ -1710,10 +1775,14 @@ pub fn run() {
                 codex_session_text: "--".to_string(),
                 codex_weekly_percent: 0.0,
                 codex_weekly_text: "--".to_string(),
-                antigravity_session_percent: 0.0,
-                antigravity_session_text: "--".to_string(),
-                antigravity_weekly_percent: 0.0,
-                antigravity_weekly_text: "--".to_string(),
+                antigravity_gemini_session_percent: 0.0,
+                antigravity_gemini_session_text: "--".to_string(),
+                antigravity_gemini_weekly_percent: 0.0,
+                antigravity_gemini_weekly_text: "--".to_string(),
+                antigravity_claude_session_percent: 0.0,
+                antigravity_claude_session_text: "--".to_string(),
+                antigravity_claude_weekly_percent: 0.0,
+                antigravity_claude_weekly_text: "--".to_string(),
                 claude_code_available,
                 show_claude_code: settings.show_claude_code,
                 show_codex: settings.show_codex,
@@ -1841,10 +1910,14 @@ fn render_layered() {
         codex_session_text,
         codex_weekly_pct,
         codex_weekly_text,
-        antigravity_session_pct,
-        antigravity_session_text,
-        antigravity_weekly_pct,
-        antigravity_weekly_text,
+        antigravity_gemini_session_pct,
+        antigravity_gemini_session_text,
+        antigravity_gemini_weekly_pct,
+        antigravity_gemini_weekly_text,
+        antigravity_claude_session_pct,
+        antigravity_claude_session_text,
+        antigravity_claude_weekly_pct,
+        antigravity_claude_weekly_text,
         show_claude_code,
         show_codex,
         show_antigravity,
@@ -1867,10 +1940,14 @@ fn render_layered() {
                 s.codex_session_text.clone(),
                 s.codex_weekly_percent,
                 s.codex_weekly_text.clone(),
-                s.antigravity_session_percent,
-                s.antigravity_session_text.clone(),
-                s.antigravity_weekly_percent,
-                s.antigravity_weekly_text.clone(),
+                s.antigravity_gemini_session_percent,
+                s.antigravity_gemini_session_text.clone(),
+                s.antigravity_gemini_weekly_percent,
+                s.antigravity_gemini_weekly_text.clone(),
+                s.antigravity_claude_session_percent,
+                s.antigravity_claude_session_text.clone(),
+                s.antigravity_claude_weekly_percent,
+                s.antigravity_claude_weekly_text.clone(),
                 s.show_claude_code,
                 s.show_codex,
                 s.show_antigravity,
@@ -1896,7 +1973,8 @@ fn render_layered() {
 
     let accent = claude_accent_color();
     let codex_accent = codex_accent_color(is_dark);
-    let antigravity_accent = antigravity_accent_color();
+    let antigravity_gemini_accent = antigravity_gemini_accent_color();
+    let antigravity_claude_accent = antigravity_claude_accent_color();
     let track = if is_dark {
         Color::from_hex("#444444")
     } else {
@@ -1965,17 +2043,22 @@ fn render_layered() {
             &codex_session_text,
             codex_weekly_pct,
             &codex_weekly_text,
-            antigravity_session_pct,
-            &antigravity_session_text,
-            antigravity_weekly_pct,
-            &antigravity_weekly_text,
+            antigravity_gemini_session_pct,
+            &antigravity_gemini_session_text,
+            antigravity_gemini_weekly_pct,
+            &antigravity_gemini_weekly_text,
+            antigravity_claude_session_pct,
+            &antigravity_claude_session_text,
+            antigravity_claude_weekly_pct,
+            &antigravity_claude_weekly_text,
             show_claude_code,
             show_codex,
             show_antigravity,
             show_session_window,
             show_weekly_window,
             &codex_accent,
-            &antigravity_accent,
+            &antigravity_gemini_accent,
+            &antigravity_claude_accent,
         );
 
         // Background pixels → alpha 1 (nearly invisible but still hittable for right-click).
@@ -2045,25 +2128,36 @@ fn paint_content(
     codex_session_text: &str,
     codex_weekly_pct: f64,
     codex_weekly_text: &str,
-    antigravity_session_pct: f64,
-    antigravity_session_text: &str,
-    antigravity_weekly_pct: f64,
-    antigravity_weekly_text: &str,
+    antigravity_gemini_session_pct: f64,
+    antigravity_gemini_session_text: &str,
+    antigravity_gemini_weekly_pct: f64,
+    antigravity_gemini_weekly_text: &str,
+    antigravity_claude_session_pct: f64,
+    antigravity_claude_session_text: &str,
+    antigravity_claude_weekly_pct: f64,
+    antigravity_claude_weekly_text: &str,
     show_claude_code: bool,
     show_codex: bool,
     show_antigravity: bool,
     show_session_window: bool,
     show_weekly_window: bool,
     codex_accent: &Color,
-    antigravity_accent: &Color,
+    antigravity_gemini_accent: &Color,
+    antigravity_claude_accent: &Color,
 ) {
     unsafe {
         let session_pct = usage_percent_for_display(session_pct);
         let weekly_pct = usage_percent_for_display(weekly_pct);
         let codex_session_pct = usage_percent_for_display(codex_session_pct);
         let codex_weekly_pct = usage_percent_for_display(codex_weekly_pct);
-        let antigravity_session_pct = usage_percent_for_display(antigravity_session_pct);
-        let antigravity_weekly_pct = usage_percent_for_display(antigravity_weekly_pct);
+        let antigravity_gemini_session_pct =
+            usage_percent_for_display(antigravity_gemini_session_pct);
+        let antigravity_gemini_weekly_pct =
+            usage_percent_for_display(antigravity_gemini_weekly_pct);
+        let antigravity_claude_session_pct =
+            usage_percent_for_display(antigravity_claude_session_pct);
+        let antigravity_claude_weekly_pct =
+            usage_percent_for_display(antigravity_claude_weekly_pct);
         let (label_width, text_width) = usage_layout_widths(language);
 
         let client_rect = RECT {
@@ -2115,6 +2209,17 @@ fn paint_content(
         let _ = DeleteObject(right_brush);
 
         let content_x = sc(LEFT_DIVIDER_W) + sc(DIVIDER_RIGHT_MARGIN);
+        let time_separator_x = content_x + sc(label_width) + sc(LABEL_RIGHT_MARGIN);
+        let separator_brush = CreateSolidBrush(COLORREF(track.to_colorref()));
+        let separator_rect = RECT {
+            left: time_separator_x,
+            top: sc(5),
+            right: time_separator_x + sc(TIME_SEPARATOR_WIDTH),
+            bottom: height - sc(5),
+        };
+        FillRect(hdc, &separator_rect, separator_brush);
+        let _ = DeleteObject(separator_brush);
+
         let row2_y = height - sc(5) - sc(SEGMENT_H);
         let row1_y = row2_y - sc(10) - sc(SEGMENT_H);
         let single_row_y = (height - sc(SEGMENT_H)) / 2;
@@ -2157,14 +2262,17 @@ fn paint_content(
                 session_text,
                 codex_session_pct,
                 codex_session_text,
-                antigravity_session_pct,
-                antigravity_session_text,
+                antigravity_gemini_session_pct,
+                antigravity_gemini_session_text,
+                antigravity_claude_session_pct,
+                antigravity_claude_session_text,
                 show_claude_code,
                 show_codex,
                 show_antigravity,
                 accent,
                 codex_accent,
-                antigravity_accent,
+                antigravity_gemini_accent,
+                antigravity_claude_accent,
                 track,
                 label_width,
                 text_width,
@@ -2186,14 +2294,17 @@ fn paint_content(
                 weekly_text,
                 codex_weekly_pct,
                 codex_weekly_text,
-                antigravity_weekly_pct,
-                antigravity_weekly_text,
+                antigravity_gemini_weekly_pct,
+                antigravity_gemini_weekly_text,
+                antigravity_claude_weekly_pct,
+                antigravity_claude_weekly_text,
                 show_claude_code,
                 show_codex,
                 show_antigravity,
                 accent,
                 codex_accent,
-                antigravity_accent,
+                antigravity_gemini_accent,
+                antigravity_claude_accent,
                 track,
                 label_width,
                 text_width,
@@ -2271,11 +2382,18 @@ fn do_poll(send_hwnd: SendHwnd) {
                     s.codex_weekly_percent = 0.0;
                 }
                 if let Some(antigravity) = data.antigravity.as_ref() {
-                    s.antigravity_session_percent = antigravity.session.percentage;
-                    s.antigravity_weekly_percent = antigravity.weekly.percentage;
+                    s.antigravity_gemini_session_percent = antigravity.session.percentage;
+                    s.antigravity_gemini_weekly_percent = antigravity.weekly.percentage;
                 } else if s.show_antigravity {
-                    s.antigravity_session_percent = 0.0;
-                    s.antigravity_weekly_percent = 0.0;
+                    s.antigravity_gemini_session_percent = 0.0;
+                    s.antigravity_gemini_weekly_percent = 0.0;
+                }
+                if let Some(antigravity) = data.antigravity_claude.as_ref() {
+                    s.antigravity_claude_session_percent = antigravity.session.percentage;
+                    s.antigravity_claude_weekly_percent = antigravity.weekly.percentage;
+                } else if s.show_antigravity {
+                    s.antigravity_claude_session_percent = 0.0;
+                    s.antigravity_claude_weekly_percent = 0.0;
                 }
                 // Stop fast-poll if reset data is now fresh
                 if !poller::app_is_past_reset(&data) {
@@ -2362,8 +2480,10 @@ fn do_poll(send_hwnd: SendHwnd) {
                             s.weekly_text = "!".to_string();
                             s.codex_session_text = "!".to_string();
                             s.codex_weekly_text = "!".to_string();
-                            s.antigravity_session_text = "!".to_string();
-                            s.antigravity_weekly_text = "!".to_string();
+                            s.antigravity_gemini_session_text = "!".to_string();
+                            s.antigravity_gemini_weekly_text = "!".to_string();
+                            s.antigravity_claude_session_text = "!".to_string();
+                            s.antigravity_claude_weekly_text = "!".to_string();
                             s.retry_count = s.retry_count.saturating_add(1);
                             unsafe {
                                 let _ = KillTimer(hwnd, TIMER_POLL);
@@ -2383,8 +2503,10 @@ fn do_poll(send_hwnd: SendHwnd) {
                             s.weekly_text = label.clone();
                             s.codex_session_text = label.clone();
                             s.codex_weekly_text = label.clone();
-                            s.antigravity_session_text = label.clone();
-                            s.antigravity_weekly_text = label;
+                            s.antigravity_gemini_session_text = label.clone();
+                            s.antigravity_gemini_weekly_text = label.clone();
+                            s.antigravity_claude_session_text = label.clone();
+                            s.antigravity_claude_weekly_text = label;
                             s.retry_count = s.retry_count.saturating_add(1);
                             let backoff = RETRY_BASE_MS.saturating_mul(
                                 1u32.checked_shl(s.retry_count - 1).unwrap_or(u32::MAX),
@@ -2490,6 +2612,12 @@ fn schedule_countdown_timer() {
             .as_ref()
             .and_then(|usage| poller::time_until_display_change(usage.session.resets_at)),
         data.antigravity
+            .as_ref()
+            .and_then(|usage| poller::time_until_display_change(usage.weekly.resets_at)),
+        data.antigravity_claude
+            .as_ref()
+            .and_then(|usage| poller::time_until_display_change(usage.session.resets_at)),
+        data.antigravity_claude
             .as_ref()
             .and_then(|usage| poller::time_until_display_change(usage.weekly.resets_at)),
     ];
@@ -3186,8 +3314,10 @@ unsafe extern "system" fn wnd_proc(
                             s.weekly_text = "...".to_string();
                             s.codex_session_text = "...".to_string();
                             s.codex_weekly_text = "...".to_string();
-                            s.antigravity_session_text = "...".to_string();
-                            s.antigravity_weekly_text = "...".to_string();
+                            s.antigravity_gemini_session_text = "...".to_string();
+                            s.antigravity_gemini_weekly_text = "...".to_string();
+                            s.antigravity_claude_session_text = "...".to_string();
+                            s.antigravity_claude_weekly_text = "...".to_string();
                         }
                     }
                     save_state_settings();
@@ -3678,10 +3808,14 @@ fn paint(hdc: HDC, hwnd: HWND) {
         codex_session_text,
         codex_weekly_pct,
         codex_weekly_text,
-        antigravity_session_pct,
-        antigravity_session_text,
-        antigravity_weekly_pct,
-        antigravity_weekly_text,
+        antigravity_gemini_session_pct,
+        antigravity_gemini_session_text,
+        antigravity_gemini_weekly_pct,
+        antigravity_gemini_weekly_text,
+        antigravity_claude_session_pct,
+        antigravity_claude_session_text,
+        antigravity_claude_weekly_pct,
+        antigravity_claude_weekly_text,
         show_claude_code,
         show_codex,
         show_antigravity,
@@ -3702,10 +3836,14 @@ fn paint(hdc: HDC, hwnd: HWND) {
                 s.codex_session_text.clone(),
                 s.codex_weekly_percent,
                 s.codex_weekly_text.clone(),
-                s.antigravity_session_percent,
-                s.antigravity_session_text.clone(),
-                s.antigravity_weekly_percent,
-                s.antigravity_weekly_text.clone(),
+                s.antigravity_gemini_session_percent,
+                s.antigravity_gemini_session_text.clone(),
+                s.antigravity_gemini_weekly_percent,
+                s.antigravity_gemini_weekly_text.clone(),
+                s.antigravity_claude_session_percent,
+                s.antigravity_claude_session_text.clone(),
+                s.antigravity_claude_weekly_percent,
+                s.antigravity_claude_weekly_text.clone(),
                 s.show_claude_code,
                 s.show_codex,
                 s.show_antigravity,
@@ -3718,7 +3856,8 @@ fn paint(hdc: HDC, hwnd: HWND) {
 
     let accent = claude_accent_color();
     let codex_accent = codex_accent_color(is_dark);
-    let antigravity_accent = antigravity_accent_color();
+    let antigravity_gemini_accent = antigravity_gemini_accent_color();
+    let antigravity_claude_accent = antigravity_claude_accent_color();
     let track = if is_dark {
         Color::from_hex("#444444")
     } else {
@@ -3768,17 +3907,22 @@ fn paint(hdc: HDC, hwnd: HWND) {
             &codex_session_text,
             codex_weekly_pct,
             &codex_weekly_text,
-            antigravity_session_pct,
-            &antigravity_session_text,
-            antigravity_weekly_pct,
-            &antigravity_weekly_text,
+            antigravity_gemini_session_pct,
+            &antigravity_gemini_session_text,
+            antigravity_gemini_weekly_pct,
+            &antigravity_gemini_weekly_text,
+            antigravity_claude_session_pct,
+            &antigravity_claude_session_text,
+            antigravity_claude_weekly_pct,
+            &antigravity_claude_weekly_text,
             show_claude_code,
             show_codex,
             show_antigravity,
             show_session_window,
             show_weekly_window,
             &codex_accent,
-            &antigravity_accent,
+            &antigravity_gemini_accent,
+            &antigravity_claude_accent,
         );
 
         let _ = BitBlt(hdc, 0, 0, width, height, mem_dc, 0, 0, SRCCOPY);
@@ -3801,14 +3945,17 @@ fn draw_row(
     claude_text: &str,
     codex_percent: f64,
     codex_text: &str,
-    antigravity_percent: f64,
-    antigravity_text: &str,
+    antigravity_gemini_percent: f64,
+    antigravity_gemini_text: &str,
+    antigravity_claude_percent: f64,
+    antigravity_claude_text: &str,
     show_claude_code: bool,
     show_codex: bool,
     show_antigravity: bool,
     claude_accent: &Color,
     codex_accent: &Color,
-    antigravity_accent: &Color,
+    antigravity_gemini_accent: &Color,
+    antigravity_claude_accent: &Color,
     track: &Color,
     label_width: i32,
     text_width: i32,
@@ -3827,8 +3974,13 @@ fn draw_row(
     } else {
         *text_color
     };
-    let antigravity_value_color = if use_model_text_colors {
-        antigravity_usage_text_color(is_dark)
+    let antigravity_gemini_value_color = if use_model_text_colors {
+        antigravity_gemini_usage_text_color(is_dark)
+    } else {
+        *text_color
+    };
+    let antigravity_claude_value_color = if use_model_text_colors {
+        antigravity_claude_usage_text_color(is_dark)
     } else {
         *text_color
     };
@@ -3849,7 +4001,11 @@ fn draw_row(
             DT_LEFT | DT_VCENTER | DT_SINGLELINE,
         );
 
-        let mut model_x = x + sc(label_width) + sc(LABEL_RIGHT_MARGIN);
+        let mut model_x = x
+            + sc(label_width)
+            + sc(LABEL_RIGHT_MARGIN)
+            + sc(TIME_SEPARATOR_WIDTH)
+            + sc(TIME_SEPARATOR_RIGHT_MARGIN);
         if show_claude_code {
             draw_provider_badge(hdc, model_x, y, "CL", claude_accent);
             draw_usage_bar(
@@ -3883,17 +4039,32 @@ fn draw_row(
             model_x += model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN);
         }
         if show_antigravity {
-            draw_provider_badge(hdc, model_x, y, "AG", antigravity_accent);
+            draw_provider_badge(hdc, model_x, y, "AG-G", antigravity_gemini_accent);
             draw_usage_bar(
                 hdc,
                 model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
                 y,
                 segment_count,
-                antigravity_percent,
-                antigravity_text,
-                antigravity_accent,
+                antigravity_gemini_percent,
+                antigravity_gemini_text,
+                antigravity_gemini_accent,
                 track,
-                &antigravity_value_color,
+                &antigravity_gemini_value_color,
+                text_width,
+            );
+            model_x += model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN);
+
+            draw_provider_badge(hdc, model_x, y, "AG-C", antigravity_claude_accent);
+            draw_usage_bar(
+                hdc,
+                model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
+                y,
+                segment_count,
+                antigravity_claude_percent,
+                antigravity_claude_text,
+                antigravity_claude_accent,
+                track,
+                &antigravity_claude_value_color,
                 text_width,
             );
         }

@@ -225,7 +225,7 @@ fn poll_with(
     show_antigravity: bool,
     mut poll_claude_code: impl FnMut() -> Result<UsageData, PollError>,
     mut poll_codex: impl FnMut() -> Result<UsageData, PollError>,
-    mut poll_antigravity: impl FnMut() -> Result<UsageData, PollError>,
+    mut poll_antigravity: impl FnMut() -> Result<(Option<UsageData>, Option<UsageData>), PollError>,
 ) -> Result<AppUsageData, PollError> {
     let mut data = AppUsageData::default();
     let mut first_error = None;
@@ -257,7 +257,10 @@ fn poll_with(
 
     if show_antigravity {
         match poll_antigravity() {
-            Ok(antigravity) => data.antigravity = Some(antigravity),
+            Ok((gemini, claude)) => {
+                data.antigravity = gemini;
+                data.antigravity_claude = claude;
+            }
             Err(error) => {
                 if active_provider_count > 1 {
                     diagnose::log(format!("Antigravity usage poll failed: {error:?}"));
@@ -267,7 +270,11 @@ fn poll_with(
         }
     }
 
-    if data.claude_code.is_none() && data.codex.is_none() && data.antigravity.is_none() {
+    if data.claude_code.is_none()
+        && data.codex.is_none()
+        && data.antigravity.is_none()
+        && data.antigravity_claude.is_none()
+    {
         Err(first_error.unwrap_or(PollError::RequestFailed))
     } else {
         Ok(data)
@@ -300,7 +307,7 @@ fn poll_codex() -> Result<UsageData, PollError> {
     fetch_codex_usage(&creds.access_token, creds.account_id.as_deref())
 }
 
-fn poll_antigravity() -> Result<UsageData, PollError> {
+fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
     let creds = match read_antigravity_credentials() {
         Some(creds) => creds,
         None => {
@@ -732,7 +739,9 @@ fn antigravity_credential_watch_signature() -> String {
     )
 }
 
-fn fetch_antigravity_usage(token: &str) -> Result<UsageData, PollError> {
+fn fetch_antigravity_usage(
+    token: &str,
+) -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
     let mut auth_error = false;
     let mut last_error = PollError::RequestFailed;
 
@@ -754,7 +763,7 @@ fn fetch_antigravity_usage(token: &str) -> Result<UsageData, PollError> {
 fn fetch_antigravity_usage_from_endpoint(
     base_url: &str,
     token: &str,
-) -> Result<UsageData, PollError> {
+) -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
     let project = fetch_antigravity_project(base_url, token)?;
     if let Some(project) = project.as_deref() {
         match fetch_antigravity_quota_summary(base_url, token, project) {
@@ -766,10 +775,22 @@ fn fetch_antigravity_usage_from_endpoint(
         }
     }
 
-    let session = fetch_antigravity_model_quota(base_url, token, project.as_deref())?;
-    let weekly = UsageSection::default();
+    let (gemini_session, claude_session) =
+        fetch_antigravity_model_quotas(base_url, token, project.as_deref())?;
+    let to_usage = |session: Option<UsageSection>| {
+        session.map(|session| UsageData {
+            session,
+            weekly: UsageSection::default(),
+        })
+    };
 
-    Ok(UsageData { session, weekly })
+    let gemini = to_usage(gemini_session);
+    let claude = to_usage(claude_session);
+    if gemini.is_none() && claude.is_none() {
+        Err(PollError::RequestFailed)
+    } else {
+        Ok((gemini, claude))
+    }
 }
 
 fn fetch_antigravity_project(base_url: &str, token: &str) -> Result<Option<String>, PollError> {
@@ -806,11 +827,11 @@ fn fetch_antigravity_project(base_url: &str, token: &str) -> Result<Option<Strin
     Ok(response.project.filter(|project| !project.is_empty()))
 }
 
-fn fetch_antigravity_model_quota(
+fn fetch_antigravity_model_quotas(
     base_url: &str,
     token: &str,
     project: Option<&str>,
-) -> Result<UsageSection, PollError> {
+) -> Result<(Option<UsageSection>, Option<UsageSection>), PollError> {
     let agent = build_agent()?;
     let body = match project {
         Some(project) => serde_json::json!({ "project": project }),
@@ -843,21 +864,34 @@ fn fetch_antigravity_model_quota(
         }
     };
 
-    best_antigravity_section(response.models.into_iter().filter_map(|(model, info)| {
-        let quota = info.quota_info?;
-        if !is_antigravity_display_model(&model) {
-            return None;
+    let mut gemini_sections = Vec::new();
+    let mut claude_sections = Vec::new();
+    for (model, info) in response.models {
+        let Some(quota) = info.quota_info else {
+            continue;
+        };
+        let Some(section) = antigravity_section_from_quota(quota) else {
+            continue;
+        };
+        let model = model.to_ascii_lowercase();
+        if model.starts_with("gemini") {
+            gemini_sections.push(section);
+        } else if model.starts_with("claude") {
+            claude_sections.push(section);
         }
-        antigravity_section_from_quota(quota)
-    }))
-    .ok_or(PollError::RequestFailed)
+    }
+
+    Ok((
+        best_antigravity_section(gemini_sections),
+        best_antigravity_section(claude_sections),
+    ))
 }
 
 fn fetch_antigravity_quota_summary(
     base_url: &str,
     token: &str,
     project: &str,
-) -> Result<UsageData, PollError> {
+) -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
     let agent = build_agent()?;
     let body = serde_json::json!({ "project": project });
 
@@ -908,23 +942,23 @@ fn antigravity_section_from_summary_bucket(
     })
 }
 
-fn antigravity_usage_from_summary(response: AntigravityQuotaSummaryResponse) -> Option<UsageData> {
-    let mut fallback = None;
+fn antigravity_usage_from_summary(
+    response: AntigravityQuotaSummaryResponse,
+) -> Option<(Option<UsageData>, Option<UsageData>)> {
+    let mut gemini = None;
+    let mut claude = None;
 
     for group in response.groups.unwrap_or_default() {
-        let is_gemini = is_antigravity_gemini_summary_group(&group);
+        let family = antigravity_summary_group_family(&group);
         let usage = antigravity_usage_from_summary_group(group);
-
-        if is_gemini && usage.is_some() {
-            return usage;
-        }
-
-        if fallback.is_none() {
-            fallback = usage;
+        match family {
+            Some(AntigravityFamily::Gemini) if gemini.is_none() => gemini = usage,
+            Some(AntigravityFamily::Claude) if claude.is_none() => claude = usage,
+            _ => {}
         }
     }
 
-    fallback
+    (gemini.is_some() || claude.is_some()).then_some((gemini, claude))
 }
 
 fn antigravity_usage_from_summary_group(group: AntigravityQuotaSummaryGroup) -> Option<UsageData> {
@@ -952,27 +986,40 @@ fn antigravity_usage_from_summary_group(group: AntigravityQuotaSummaryGroup) -> 
     has_quota.then_some(data)
 }
 
-fn is_antigravity_gemini_summary_group(group: &AntigravityQuotaSummaryGroup) -> bool {
-    group
-        .display_name
-        .as_deref()
-        .is_some_and(|name| name.to_ascii_lowercase().contains("gemini"))
-        || group
-            .description
-            .as_deref()
-            .is_some_and(|description| description.to_ascii_lowercase().contains("gemini"))
-        || group.buckets.as_ref().is_some_and(|buckets| {
-            buckets.iter().any(|bucket| {
-                bucket
-                    .bucket_id
-                    .as_deref()
-                    .is_some_and(|id| id.to_ascii_lowercase().starts_with("gemini-"))
-                    || bucket
-                        .display_name
-                        .as_deref()
-                        .is_some_and(|name| name.to_ascii_lowercase().contains("gemini"))
-            })
-        })
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AntigravityFamily {
+    Gemini,
+    Claude,
+}
+
+fn antigravity_summary_group_family(
+    group: &AntigravityQuotaSummaryGroup,
+) -> Option<AntigravityFamily> {
+    let mut haystacks = Vec::new();
+    if let Some(name) = group.display_name.as_deref() {
+        haystacks.push(name.to_ascii_lowercase());
+    }
+    if let Some(description) = group.description.as_deref() {
+        haystacks.push(description.to_ascii_lowercase());
+    }
+    if let Some(buckets) = group.buckets.as_ref() {
+        for bucket in buckets {
+            if let Some(id) = bucket.bucket_id.as_deref() {
+                haystacks.push(id.to_ascii_lowercase());
+            }
+            if let Some(name) = bucket.display_name.as_deref() {
+                haystacks.push(name.to_ascii_lowercase());
+            }
+        }
+    }
+
+    if haystacks.iter().any(|value| value.contains("gemini")) {
+        Some(AntigravityFamily::Gemini)
+    } else if haystacks.iter().any(|value| value.contains("claude")) {
+        Some(AntigravityFamily::Claude)
+    } else {
+        None
+    }
 }
 
 fn best_antigravity_section<I>(sections: I) -> Option<UsageSection>
@@ -985,14 +1032,6 @@ where
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| a.resets_at.cmp(&b.resets_at))
     })
-}
-
-fn is_antigravity_display_model(model: &str) -> bool {
-    model.starts_with("gemini")
-        || model.starts_with("claude")
-        || model.starts_with("gpt")
-        || model.starts_with("image")
-        || model.starts_with("imagen")
 }
 
 fn get_header_f64(response: &ureq::Response, name: &str) -> f64 {
@@ -1488,6 +1527,7 @@ pub fn app_is_past_reset(data: &AppUsageData) -> bool {
     data.claude_code.as_ref().is_some_and(is_past_reset)
         || data.codex.as_ref().is_some_and(is_past_reset)
         || data.antigravity.as_ref().is_some_and(is_past_reset)
+        || data.antigravity_claude.as_ref().is_some_and(is_past_reset)
 }
 
 #[cfg(test)]
@@ -1700,11 +1740,12 @@ mod tests {
         .expect("codex data should keep the poll successful");
 
         assert!(data.antigravity.is_none());
+        assert!(data.antigravity_claude.is_none());
         assert_eq!(data.codex.unwrap().session.percentage, 42.0);
     }
 
     #[test]
-    fn antigravity_summary_prefers_gemini_group() {
+    fn antigravity_summary_splits_gemini_and_claude_groups() {
         let response: AntigravityQuotaSummaryResponse = serde_json::from_str(
             r#"{
                 "groups": [
@@ -1715,13 +1756,14 @@ mod tests {
                                 "bucketId": "3p-weekly",
                                 "window": "weekly",
                                 "resetTime": "2026-06-20T18:32:02Z",
-                                "remainingFraction": 1
+                                "remainingFraction": 0.80
                             },
                             {
                                 "bucketId": "3p-5h",
+                                "displayName": "Claude Five Hour Limit",
                                 "window": "5h",
                                 "resetTime": "2026-06-13T23:32:02Z",
-                                "remainingFraction": 1
+                                "remainingFraction": 0.70
                             }
                         ]
                     },
@@ -1750,12 +1792,16 @@ mod tests {
         )
         .expect("summary response should deserialize");
 
-        let usage =
-            antigravity_usage_from_summary(response).expect("Gemini quota should be selected");
+        let (gemini, claude) =
+            antigravity_usage_from_summary(response).expect("family quotas should be selected");
+        let gemini = gemini.expect("Gemini quota should be present");
+        let claude = claude.expect("Claude quota should be present");
 
-        assert!((usage.weekly.percentage - 0.695705).abs() < 0.000001);
-        assert!((usage.session.percentage - 4.17425).abs() < 0.000001);
-        assert!(usage.weekly.resets_at.is_some());
-        assert!(usage.session.resets_at.is_some());
+        assert!((gemini.weekly.percentage - 0.695705).abs() < 0.000001);
+        assert!((gemini.session.percentage - 4.17425).abs() < 0.000001);
+        assert!((claude.weekly.percentage - 20.0).abs() < 0.000001);
+        assert!((claude.session.percentage - 30.0).abs() < 0.000001);
+        assert!(gemini.weekly.resets_at.is_some());
+        assert!(claude.session.resets_at.is_some());
     }
 }
