@@ -186,10 +186,10 @@ const RELAUNCH_THROTTLE_SECS: u64 = 10;
 const RELAUNCH_BACKOFF_SECS: u64 = 30;
 /// Environment flag set on a relaunched child so it waits for the previous
 /// instance's single-instance mutex instead of exiting immediately.
-const ENV_RELAUNCH: &str = "CODEX_USAGE_RELAUNCH";
+const ENV_RELAUNCH: &str = "AI_USAGE_RELAUNCH";
 /// Unix timestamp (seconds) of the relaunch that spawned this process, passed to
 /// the child so it can detect a relaunch storm.
-const ENV_LAST_RELAUNCH_UNIX: &str = "CODEX_USAGE_LAST_RELAUNCH_UNIX";
+const ENV_LAST_RELAUNCH_UNIX: &str = "AI_USAGE_LAST_RELAUNCH_UNIX";
 
 /// Relaunch the widget as a fresh process after explorer.exe has restarted.
 ///
@@ -302,8 +302,9 @@ fn lock_state() -> MutexGuard<'static, Option<AppState>> {
     STATE.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-const SETTINGS_DIR: &str = "CodexUsage";
-const LEGACY_SETTINGS_DIR: &str = "ClaudeCodeUsageMonitor";
+const SETTINGS_DIR: &str = "AIUsage";
+const LEGACY_SETTINGS_DIR: &str = "CodexUsage";
+const OLDEST_LEGACY_SETTINGS_DIR: &str = "ClaudeCodeUsageMonitor";
 
 fn appdata_path(directory: &str) -> PathBuf {
     let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
@@ -316,6 +317,10 @@ fn settings_path() -> PathBuf {
 
 fn legacy_settings_path() -> PathBuf {
     appdata_path(LEGACY_SETTINGS_DIR)
+}
+
+fn oldest_legacy_settings_path() -> PathBuf {
+    appdata_path(OLDEST_LEGACY_SETTINGS_DIR)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -395,7 +400,9 @@ fn default_show_usage_window() -> bool {
 fn load_settings(claude_code_available: bool) -> SettingsFile {
     let current_path = settings_path();
     let legacy_path = legacy_settings_path();
+    let oldest_legacy_path = oldest_legacy_settings_path();
     let (settings, migrated) = load_settings_from_paths(&current_path, &legacy_path)
+        .or_else(|| load_settings_from_paths(&current_path, &oldest_legacy_path))
         .unwrap_or_else(|| (SettingsFile::default(), false));
     let settings = normalize_settings(settings);
     let (settings, claude_auto_disabled) =
@@ -404,8 +411,7 @@ fn load_settings(claude_code_available: bool) -> SettingsFile {
         save_settings(&settings);
         if migrated {
             diagnose::log(format!(
-                "migrated settings from {} to {}",
-                legacy_path.display(),
+                "migrated legacy settings to {}",
                 current_path.display()
             ));
         }
@@ -1239,8 +1245,8 @@ fn begin_winget_update(hwnd: HWND) {
 }
 
 const STARTUP_REGISTRY_PATH: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
-const STARTUP_REGISTRY_KEY: &str = "CodexUsage";
-const LEGACY_STARTUP_REGISTRY_KEY: &str = "ClaudeCodeUsageMonitor";
+const STARTUP_REGISTRY_KEY: &str = "AIUsage";
+const LEGACY_STARTUP_REGISTRY_KEYS: [&str; 2] = ["CodexUsage", "ClaudeCodeUsageMonitor"];
 
 /// Returns true only if the startup registry value points to this executable.
 fn is_startup_enabled() -> bool {
@@ -1340,7 +1346,9 @@ fn delete_startup_value(key: &str) {
 }
 
 fn migrate_legacy_startup_entry() {
-    let legacy_exists = read_startup_value(LEGACY_STARTUP_REGISTRY_KEY).is_some();
+    let legacy_exists = LEGACY_STARTUP_REGISTRY_KEYS
+        .iter()
+        .any(|key| read_startup_value(key).is_some());
     let current_exists = read_startup_value(STARTUP_REGISTRY_KEY).is_some();
     if !legacy_exists {
         return;
@@ -1351,8 +1359,10 @@ fn migrate_legacy_startup_entry() {
     }
 
     if read_startup_value(STARTUP_REGISTRY_KEY).is_some() {
-        delete_startup_value(LEGACY_STARTUP_REGISTRY_KEY);
-        diagnose::log("migrated legacy startup registry entry to CodexUsage");
+        for key in LEGACY_STARTUP_REGISTRY_KEYS {
+            delete_startup_value(key);
+        }
+        diagnose::log("migrated legacy startup registry entry to AIUsage");
     }
 }
 
@@ -1397,8 +1407,10 @@ fn set_startup_enabled(enable: bool) {
             }
         } else {
             let _ = RegDeleteValueW(hkey, PCWSTR::from_raw(key_name.as_ptr()));
-            let legacy_key_name = native_interop::wide_str(LEGACY_STARTUP_REGISTRY_KEY);
-            let _ = RegDeleteValueW(hkey, PCWSTR::from_raw(legacy_key_name.as_ptr()));
+            for legacy_key in LEGACY_STARTUP_REGISTRY_KEYS {
+                let legacy_key_name = native_interop::wide_str(legacy_key);
+                let _ = RegDeleteValueW(hkey, PCWSTR::from_raw(legacy_key_name.as_ptr()));
+            }
         }
 
         let _ = RegCloseKey(hkey);
@@ -1569,7 +1581,7 @@ pub fn run() {
     // Exception: when relaunched after an explorer restart (ENV_RELAUNCH set),
     // wait for the previous instance to release the mutex, then take over.
     let is_relaunch = std::env::var(ENV_RELAUNCH).is_ok();
-    let mutex_name = native_interop::wide_str("Global\\CodexUsage");
+    let mutex_name = native_interop::wide_str("Global\\AIUsage");
     let _mutex = unsafe {
         let handle = CreateMutexW(None, true, PCWSTR::from_raw(mutex_name.as_ptr()));
         match handle {
@@ -1603,7 +1615,7 @@ pub fn run() {
 
     migrate_legacy_startup_entry();
 
-    let class_name = native_interop::wide_str("CodexUsage");
+    let class_name = native_interop::wide_str("AIUsage");
 
     unsafe {
         let hinstance = GetModuleHandleW(PCWSTR::null()).unwrap();
@@ -4060,12 +4072,12 @@ mod tests {
     #[test]
     fn loads_legacy_settings_when_new_path_is_missing() {
         let base = std::env::temp_dir().join(format!(
-            "codex-usage-settings-test-{}-{}",
+            "ai-usage-settings-test-{}-{}",
             std::process::id(),
             now_unix_secs()
         ));
-        let current = base.join("CodexUsage").join("settings.json");
-        let legacy = base.join("ClaudeCodeUsageMonitor").join("settings.json");
+        let current = base.join("AIUsage").join("settings.json");
+        let legacy = base.join("CodexUsage").join("settings.json");
         std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
         std::fs::write(&legacy, test_settings_json("zh-CN")).unwrap();
 
@@ -4086,12 +4098,12 @@ mod tests {
     #[test]
     fn new_settings_take_precedence_over_legacy_settings() {
         let base = std::env::temp_dir().join(format!(
-            "codex-usage-settings-precedence-test-{}-{}",
+            "ai-usage-settings-precedence-test-{}-{}",
             std::process::id(),
             now_unix_secs()
         ));
-        let current = base.join("CodexUsage").join("settings.json");
-        let legacy = base.join("ClaudeCodeUsageMonitor").join("settings.json");
+        let current = base.join("AIUsage").join("settings.json");
+        let legacy = base.join("CodexUsage").join("settings.json");
         std::fs::create_dir_all(current.parent().unwrap()).unwrap();
         std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
         std::fs::write(&current, test_settings_json("en")).unwrap();
