@@ -1805,4 +1805,3 @@ mod tests {
         assert!(claude.session.resets_at.is_some());
     }
 }
-}
