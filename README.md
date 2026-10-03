@@ -3,9 +3,9 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-# Codex Usage
+# AI Usage
 
-<img src=".github/codex-usage-icon.png" alt="Codex Usage icon" width="96" height="96">
+<img src=".github/ai-usage-icon.png" alt="AI Usage icon" width="96" height="96">
 
 ![Screenshot](.github/animation.gif)
 
@@ -58,30 +58,30 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 The installer verifies the release SHA256 and installs to `%LOCALAPPDATA%\Programs\CodexUsage` without administrator access. It adds a Start menu shortcut and an entry in Windows Installed Apps.
 
-For portable use, download `codex-usage.exe` from the same release and run it from any user-writable directory. You can also build it locally:
+For portable use, download `ai-usage.exe` from the same release and run it from any user-writable directory. You can also build it locally:
 
 ```powershell
 cargo build --release
 ```
 
-Local builds create the executable at `target\release\codex-usage.exe`.
+Local builds create the executable at `target\release\ai-usage.exe`.
 
 ## Uninstall
 
-Uninstall **Codex Usage** from Windows Settings > Apps > Installed apps, or run:
+Uninstall **AI Usage** from Windows Settings > Apps > Installed apps, or run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\CodexUsage\uninstall.ps1"
 ```
 
-Uninstalling preserves `%APPDATA%\CodexUsage\settings.json`. Add `-RemoveSettings` to delete settings explicitly. See [Installation model](docs/installation.md) for upgrade, portable, startup, and WinGet behavior.
+Uninstalling preserves `%APPDATA%\AIUsage\settings.json`. Add `-RemoveSettings` to delete settings explicitly. See [Installation model](docs/installation.md) for upgrade, portable, startup, and WinGet behavior.
 
 ## Use
 
 Run:
 
 ```powershell
-codex-usage
+ai-usage
 ```
 
 Once running, it will appear in your taskbar and as one tray icon in the notification area.
@@ -123,13 +123,13 @@ In Simplified Chinese, the compact taskbar rows use `5h` / `7d`, one continuous 
 If you need to troubleshoot startup or visibility issues, run:
 
 ```powershell
-codex-usage --diagnose
+ai-usage --diagnose
 ```
 
 This writes a log file to:
 
 ```text
-%TEMP%\codex-usage.log
+%TEMP%\ai-usage.log
 ```
 
 The log records the application version, install channel, executable path, polling failure category, and retry timing. It does not log access tokens or credential contents. See [Troubleshooting](docs/troubleshooting.md) for the taskbar error labels and recovery steps.
@@ -137,7 +137,7 @@ The log records the application version, install channel, executable path, polli
 Settings are saved to:
 
 ```text
-%APPDATA%\CodexUsage\settings.json
+%APPDATA%\AIUsage\settings.json
 ```
 
 ## Account Support
@@ -216,6 +216,6 @@ If the newer usage endpoint is unavailable, it can fall back to reading the rate
 
 This project is licensed under the MIT License. The original [LICENSE](LICENSE) and copyright notice are preserved.
 
-Codex Usage is a maintained derivative of [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor). Thanks to Craig Constable and the upstream contributors for the original project. Changes in this repository are not affiliated with or endorsed by the upstream maintainers or OpenAI.
+AI Usage is a maintained derivative of [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor). Thanks to Craig Constable and the upstream contributors for the original project. Changes in this repository are not affiliated with or endorsed by the upstream maintainers or OpenAI.
 
 If you want to inspect the behavior or audit the code, everything is in this repository.
