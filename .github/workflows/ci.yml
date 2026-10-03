@@ -39,8 +39,8 @@ jobs:
       - name: Upload Windows test binary
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: codex-usage-windows
-          path: target/release/codex-usage.exe
+          name: ai-usage-windows
+          path: target/release/ai-usage.exe
           if-no-files-found: error
           retention-days: 7
 
