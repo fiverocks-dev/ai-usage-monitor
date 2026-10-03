@@ -24,6 +24,12 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Generate app icons
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          python scripts/generate_icons.py
+
       - name: Check formatting
         run: cargo fmt --all -- --check
 
@@ -39,8 +45,8 @@ jobs:
       - name: Upload Windows test binary
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: codex-usage-windows
-          path: target/release/codex-usage.exe
+          name: ai-usage-windows
+          path: target/release/ai-usage.exe
           if-no-files-found: error
           retention-days: 7
 

@@ -1,18 +1,18 @@
 [package]
-name = "codex-usage"
+name = "ai-usage"
 version = "1.9.1"
 edition = "2021"
 license = "MIT"
-description = "Codex Usage"
+description = "AI Usage"
 homepage = "https://github.com/fiverocks-dev/ai-usage-monitor"
 repository = "https://github.com/fiverocks-dev/ai-usage-monitor"
 
 [package.metadata.winres]
-CompanyName = "Ray"
-ProductName = "Codex Usage"
-FileDescription = "Lightweight Codex usage monitor for Windows"
-OriginalFilename = "codex-usage.exe"
-InternalName = "CodexUsage"
+CompanyName = "fiverocks-dev"
+ProductName = "AI Usage"
+FileDescription = "Lightweight AI usage monitor for Windows"
+OriginalFilename = "ai-usage.exe"
+InternalName = "AIUsage"
 Comments = "Derived from Claude Code Usage Monitor under the MIT License"
 LegalCopyright = "Original copyright (C) 2026 Code Zeno Pty Ltd; modifications (C) 2026 Ray"
 

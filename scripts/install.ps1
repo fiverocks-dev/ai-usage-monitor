@@ -12,25 +12,42 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $Repository = 'fiverocks-dev/ai-usage-monitor'
-$InstallDirectory = Join-Path $env:LOCALAPPDATA 'Programs\CodexUsage'
-$TargetPath = Join-Path $InstallDirectory 'codex-usage.exe'
+$InstallDirectory = Join-Path $env:LOCALAPPDATA 'Programs\AIUsage'
+$TargetPath = Join-Path $InstallDirectory 'ai-usage.exe'
 $InstalledUninstaller = Join-Path $InstallDirectory 'uninstall.ps1'
-$ShortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Codex Usage.lnk'
-$DesktopShortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Codex Usage.lnk'
-$UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\CodexUsage'
+$ShortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\AI Usage.lnk'
+$DesktopShortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AI Usage.lnk'
+$UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\AIUsage'
 $RunKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$TempDirectory = Join-Path ([IO.Path]::GetTempPath()) ('codex-usage-install-' + [Guid]::NewGuid().ToString('N'))
+$TempDirectory = Join-Path ([IO.Path]::GetTempPath()) ('ai-usage-install-' + [Guid]::NewGuid().ToString('N'))
+
+# Legacy Codex Usage paths are kept only for migration.
+$LegacyInstallDirectory = Join-Path $env:LOCALAPPDATA 'Programs\CodexUsage'
+$LegacyTargetPath = Join-Path $LegacyInstallDirectory 'codex-usage.exe'
+$LegacyUninstaller = Join-Path $LegacyInstallDirectory 'uninstall.ps1'
+$LegacyShortcutPath = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Codex Usage.lnk'
+$LegacyDesktopShortcutPath = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Codex Usage.lnk'
+$LegacyUninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\CodexUsage'
+$LegacyStartupKeys = @('CodexUsage', 'ClaudeCodeUsageMonitor')
 
 $StartupWasEnabled = $false
 $ExistingStartup = $null
+$ExistingStartupKey = $null
 if (Test-Path -LiteralPath $RunKey) {
-    $ExistingStartup = try {
-        Get-ItemPropertyValue -Path $RunKey -Name 'CodexUsage' -ErrorAction Stop
+    foreach ($StartupKey in @('AIUsage') + $LegacyStartupKeys) {
+        $Candidate = try {
+            Get-ItemPropertyValue -Path $RunKey -Name $StartupKey -ErrorAction Stop
+        }
+        catch {
+            $null
+        }
+        if (-not [string]::IsNullOrWhiteSpace($Candidate)) {
+            $StartupWasEnabled = $true
+            $ExistingStartup = $Candidate
+            $ExistingStartupKey = $StartupKey
+            break
+        }
     }
-    catch {
-        $null
-    }
-    $StartupWasEnabled = -not [string]::IsNullOrWhiteSpace($ExistingStartup)
 }
 
 function Get-ReleaseAsset {
@@ -52,13 +69,13 @@ function Invoke-ReleaseDownload {
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
-    Invoke-WebRequest -UseBasicParsing -Headers @{ 'User-Agent' = 'CodexUsage-Installer' } -Uri $Url -OutFile $Destination
+    Invoke-WebRequest -UseBasicParsing -Headers @{ 'User-Agent' = 'AIUsage-Installer' } -Uri $Url -OutFile $Destination
 }
 
 New-Item -ItemType Directory -Force -Path $TempDirectory | Out-Null
 
 try {
-    $StagedExecutable = Join-Path $TempDirectory 'codex-usage.exe'
+    $StagedExecutable = Join-Path $TempDirectory 'ai-usage.exe'
     $StagedUninstaller = Join-Path $TempDirectory 'uninstall.ps1'
 
     if ($SourcePath) {
@@ -79,11 +96,11 @@ try {
             "https://api.github.com/repos/$Repository/releases/latest"
         }
 
-        $Release = Invoke-RestMethod -UseBasicParsing -Headers @{ 'User-Agent' = 'CodexUsage-Installer' } -Uri $ApiUrl
-        $ExecutableUrl = Get-ReleaseAsset -Release $Release -Name 'codex-usage.exe'
-        $ChecksumUrl = Get-ReleaseAsset -Release $Release -Name 'codex-usage.exe.sha256'
+        $Release = Invoke-RestMethod -UseBasicParsing -Headers @{ 'User-Agent' = 'AIUsage-Installer' } -Uri $ApiUrl
+        $ExecutableUrl = Get-ReleaseAsset -Release $Release -Name 'ai-usage.exe'
+        $ChecksumUrl = Get-ReleaseAsset -Release $Release -Name 'ai-usage.exe.sha256'
         $UninstallerUrl = Get-ReleaseAsset -Release $Release -Name 'uninstall.ps1'
-        $ChecksumPath = Join-Path $TempDirectory 'codex-usage.exe.sha256'
+        $ChecksumPath = Join-Path $TempDirectory 'ai-usage.exe.sha256'
 
         Invoke-ReleaseDownload -Url $ExecutableUrl -Destination $StagedExecutable
         Invoke-ReleaseDownload -Url $ChecksumUrl -Destination $ChecksumPath
@@ -103,8 +120,12 @@ try {
 
     New-Item -ItemType Directory -Force -Path $InstallDirectory | Out-Null
 
-    Get-CimInstance Win32_Process -Filter "Name='codex-usage.exe'" -ErrorAction SilentlyContinue |
+    Get-CimInstance Win32_Process -Filter "Name='ai-usage.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.ExecutablePath -eq $TargetPath } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+
+    Get-CimInstance Win32_Process -Filter "Name='codex-usage.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -eq $LegacyTargetPath } |
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 
     $NewPath = "$TargetPath.new"
@@ -138,9 +159,9 @@ try {
 
         New-Item -Path $UninstallKey -Force | Out-Null
         $UninstallCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$InstalledUninstaller`""
-        Set-ItemProperty -Path $UninstallKey -Name DisplayName -Value 'Codex Usage'
+        Set-ItemProperty -Path $UninstallKey -Name DisplayName -Value 'AI Usage'
         Set-ItemProperty -Path $UninstallKey -Name DisplayVersion -Value $InstalledVersion
-        Set-ItemProperty -Path $UninstallKey -Name Publisher -Value 'Ray'
+        Set-ItemProperty -Path $UninstallKey -Name Publisher -Value 'fiverocks-dev'
         Set-ItemProperty -Path $UninstallKey -Name DisplayIcon -Value $TargetPath
         Set-ItemProperty -Path $UninstallKey -Name InstallLocation -Value $InstallDirectory
         Set-ItemProperty -Path $UninstallKey -Name URLInfoAbout -Value "https://github.com/$Repository"
@@ -150,7 +171,10 @@ try {
         Set-ItemProperty -Path $UninstallKey -Name NoRepair -Type DWord -Value 1
 
         if ($StartupWasEnabled) {
-            Set-ItemProperty -Path $RunKey -Name 'CodexUsage' -Value $TargetPath
+            Set-ItemProperty -Path $RunKey -Name 'AIUsage' -Value $TargetPath
+        }
+        foreach ($LegacyStartupKey in $LegacyStartupKeys) {
+            Remove-ItemProperty -Path $RunKey -Name $LegacyStartupKey -ErrorAction SilentlyContinue
         }
 
         $Shell = New-Object -ComObject WScript.Shell
@@ -161,12 +185,10 @@ try {
             $Shortcut.TargetPath = $TargetPath
             $Shortcut.WorkingDirectory = $InstallDirectory
             $Shortcut.IconLocation = "$TargetPath,0"
-            $Shortcut.Description = 'Codex Usage'
+            $Shortcut.Description = 'AI Usage'
             $Shortcut.Save()
         }
 
-        # Ask Explorer to refresh shortcut icons after an in-place EXE upgrade.
-        # This avoids a stale cached icon while preserving the standard arrow overlay.
         $IconRefreshTool = Join-Path $env:SystemRoot 'System32\ie4uinit.exe'
         if (Test-Path -LiteralPath $IconRefreshTool -PathType Leaf) {
             Start-Process -FilePath $IconRefreshTool -ArgumentList '-show' -WindowStyle Hidden -Wait
@@ -177,19 +199,33 @@ try {
             Remove-Item -LiteralPath $TargetPath -Force -ErrorAction SilentlyContinue
             Move-Item -LiteralPath $BackupPath -Destination $TargetPath -Force
         }
-        if ($StartupWasEnabled -and $ExistingStartup) {
-            Set-ItemProperty -Path $RunKey -Name 'CodexUsage' -Value $ExistingStartup
+        Remove-ItemProperty -Path $RunKey -Name 'AIUsage' -ErrorAction SilentlyContinue
+        if ($StartupWasEnabled -and $ExistingStartup -and $ExistingStartupKey) {
+            Set-ItemProperty -Path $RunKey -Name $ExistingStartupKey -Value $ExistingStartup
         }
         throw
     }
 
     Remove-Item -LiteralPath $BackupPath -Force -ErrorAction SilentlyContinue
 
+    # Migration cleanup happens only after the new installation is committed.
+    Remove-Item -LiteralPath $LegacyShortcutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyDesktopShortcutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyUninstallKey -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyTargetPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyUninstaller -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $LegacyInstallDirectory -PathType Container) {
+        $LegacyRemaining = @(Get-ChildItem -LiteralPath $LegacyInstallDirectory -Force -ErrorAction SilentlyContinue)
+        if ($LegacyRemaining.Count -eq 0) {
+            Remove-Item -LiteralPath $LegacyInstallDirectory -Force -ErrorAction SilentlyContinue
+        }
+    }
+
     if (-not $NoLaunch) {
         Start-Process -FilePath $TargetPath -WorkingDirectory $InstallDirectory -WindowStyle Hidden
     }
 
-    Write-Output "Codex Usage $InstalledVersion installed to $InstallDirectory"
+    Write-Output "AI Usage $InstalledVersion installed to $InstallDirectory"
     Write-Output "SHA256: $ActualSha256"
 }
 finally {

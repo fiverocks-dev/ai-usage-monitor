@@ -3,15 +3,15 @@
 
 [English](README.md) | **简体中文**
 
-# Codex Usage
+# AI Usage
 
-<img src=".github/codex-usage-icon.png" alt="Codex Usage 图标" width="96" height="96">
+<img src="src/icons/256.svg" alt="AI Usage 图标" width="96" height="96">
 
 ![运行效果](.github/animation.gif)
 
-一款轻量级的 Windows 原生任务栏小组件，用于监控 Codex 用量，并可选择同时显示 Claude Code 和 Google Antigravity 用量。
+一款轻量级的 Windows 原生任务栏小组件，用于统一监控 Codex、Claude Code 和 Google Antigravity 的 AI 用量。
 
-它常驻任务栏，无需打开 Codex 应用或账户用量页面，就能随时查看 Codex 用量窗口还剩多少。
+它常驻任务栏，可直接查看已启用服务的剩余配额，无需反复打开各应用或用量页面。
 
 ## 功能亮点
 
@@ -56,32 +56,34 @@ Antigravity 也是可选功能。若要显示其用量，请安装并登录 Goog
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装程序会校验发布文件的 SHA256，并在无需管理员权限的情况下安装到 `%LOCALAPPDATA%\Programs\CodexUsage`。它还会创建开始菜单快捷方式，并在 Windows“已安装的应用”中添加卸载项。
+安装程序会校验发布文件的 SHA256，并在无需管理员权限的情况下安装到 `%LOCALAPPDATA%\Programs\AIUsage`。它还会创建开始菜单快捷方式，并在 Windows“已安装的应用”中添加卸载项。
 
-如需便携使用，可从同一版本页面下载 `codex-usage.exe`，放在任意具有写入权限的目录中运行。你也可以在本地构建：
+如需便携使用，可从同一版本页面下载 `ai-usage.exe`，放在任意具有写入权限的目录中运行。你也可以在本地构建。请先重新生成应用图标，以确保可执行文件使用当前品牌：
 
 ```powershell
+python -m pip install Pillow==11.3.0
+python scripts/generate_icons.py
 cargo build --release
 ```
 
-本地构建的可执行文件位于 `target\release\codex-usage.exe`。
+本地构建的可执行文件位于 `target\release\ai-usage.exe`。
 
 ## 卸载
 
-可在 Windows“设置”>“应用”>“已安装的应用”中卸载 **Codex Usage**，或运行：
+可在 Windows“设置”>“应用”>“已安装的应用”中卸载 **AI Usage**，或运行：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\CodexUsage\uninstall.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\AIUsage\uninstall.ps1"
 ```
 
-卸载时会保留 `%APPDATA%\CodexUsage\settings.json`。如需同时删除设置，请显式添加 `-RemoveSettings`。有关升级、便携版、开机启动和 WinGet 的说明，请参阅[安装机制](docs/installation.md)。
+卸载时会保留 `%APPDATA%\AIUsage\settings.json`。如需同时删除设置，请显式添加 `-RemoveSettings`。有关升级、便携版、开机启动和 WinGet 的说明，请参阅[安装机制](docs/installation.md)。
 
 ## 使用方法
 
 运行：
 
 ```powershell
-codex-usage
+ai-usage
 ```
 
 启动后，它会出现在任务栏和通知区域的系统托盘中。
@@ -123,13 +125,13 @@ Claude 桌面客户端与 Claude Code CLI 使用相互独立的本地登录状�
 如需排查启动或显示问题，请运行：
 
 ```powershell
-codex-usage --diagnose
+ai-usage --diagnose
 ```
 
 日志将写入：
 
 ```text
-%TEMP%\codex-usage.log
+%TEMP%\ai-usage.log
 ```
 
 日志会记录应用版本、安装渠道、可执行文件路径、轮询失败类别和重试时间，但不会记录访问令牌或凭据内容。有关任务栏错误标签及恢复步骤，请参阅[故障排除](docs/troubleshooting.md)。
@@ -137,7 +139,7 @@ codex-usage --diagnose
 设置保存在：
 
 ```text
-%APPDATA%\CodexUsage\settings.json
+%APPDATA%\AIUsage\settings.json
 ```
 
 ## 账户支持
@@ -216,6 +218,6 @@ Codex 用量来自本地 Codex 安装中已登录的账户。可选的 Claude Co
 
 本项目采用 MIT License。原始 [LICENSE](LICENSE) 及版权声明均予以保留。
 
-Codex Usage 是 [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor) 的持续维护衍生版本。感谢 Craig Constable 和上游贡献者创建原始项目。本仓库中的修改与上游维护者或 OpenAI 不存在隶属或背书关系。
+AI Usage 是 [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor) 的持续维护衍生版本。感谢 Craig Constable 和上游贡献者创建原始项目。本仓库中的修改与上游维护者或 OpenAI 不存在隶属或背书关系。
 
 如果你想检查程序行为或审核代码，仓库中提供了全部源码。

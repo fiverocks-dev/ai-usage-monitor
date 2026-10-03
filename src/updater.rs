@@ -14,8 +14,8 @@ use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
 
 const GITHUB_API_ACCEPT: &str = "application/vnd.github+json";
 const GITHUB_API_VERSION: &str = "2022-11-28";
-const RELEASE_ASSET_NAME: &str = "codex-usage.exe";
-const CHECKSUM_ASSET_NAME: &str = "codex-usage.exe.sha256";
+const RELEASE_ASSET_NAME: &str = "ai-usage.exe";
+const CHECKSUM_ASSET_NAME: &str = "ai-usage.exe.sha256";
 const HELPER_EXE_NAME: &str = "updater-helper.exe";
 const DOWNLOAD_EXE_NAME: &str = "update-download.exe";
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -424,8 +424,8 @@ fn wait_for_process_exit(pid: u32, timeout: Duration) -> Result<(), String> {
 
 fn updates_dir() -> Result<PathBuf, String> {
     dirs::data_local_dir()
-        .map(|dir| dir.join("CodexUsage").join("updates"))
-        .or_else(|| Some(std::env::temp_dir().join("CodexUsage").join("updates")))
+        .map(|dir| dir.join("AIUsage").join("updates"))
+        .or_else(|| Some(std::env::temp_dir().join("AIUsage").join("updates")))
         .ok_or_else(|| "Unable to resolve a writable local updates directory.".to_string())
 }
 
@@ -622,7 +622,7 @@ mod tests {
     fn parses_release_checksum_with_filename() {
         let hash = "75761c6dff9c833d0a6b7a09992ce53bd417cf4a5234c065e06b1968171e2222";
         assert_eq!(
-            parse_release_checksum(&format!("{hash}  codex-usage.exe\n")).unwrap(),
+            parse_release_checksum(&format!("{hash}  ai-usage.exe\n")).unwrap(),
             hash.to_ascii_uppercase()
         );
         assert!(parse_release_checksum("not-a-checksum").is_err());
@@ -632,7 +632,7 @@ mod tests {
     fn replacement_keeps_backup_until_relaunch_is_committed() {
         let directory = test_directory("rollback");
         std::fs::create_dir_all(&directory).unwrap();
-        let target = directory.join("codex-usage.exe");
+        let target = directory.join("ai-usage.exe");
         let source = directory.join("download.exe");
         std::fs::write(&target, b"old-version").unwrap();
         std::fs::write(&source, b"new-version").unwrap();
@@ -654,7 +654,7 @@ mod tests {
     fn failed_relaunch_restores_previous_target() {
         let directory = test_directory("failed-relaunch");
         std::fs::create_dir_all(&directory).unwrap();
-        let target = directory.join("codex-usage.exe");
+        let target = directory.join("ai-usage.exe");
         let source = directory.join("download.exe");
         std::fs::write(&target, b"known-good-version").unwrap();
         std::fs::write(&source, b"not-a-windows-executable").unwrap();

@@ -3,15 +3,15 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-# Codex Usage
+# AI Usage
 
-<img src=".github/codex-usage-icon.png" alt="Codex Usage icon" width="96" height="96">
+<img src="src/icons/256.svg" alt="AI Usage icon" width="96" height="96">
 
 ![Screenshot](.github/animation.gif)
 
-A lightweight native Windows taskbar widget for monitoring Codex usage, with optional Claude Code and Google Antigravity usage display.
+A lightweight native Windows taskbar widget for monitoring AI usage across Codex, Claude Code, and Google Antigravity.
 
-It sits in your taskbar and shows how much of your Codex usage window remains without opening the Codex app or account usage page.
+It sits in your taskbar and shows the remaining quota for the services you enable without repeatedly opening their apps or usage pages.
 
 ## What You Get
 
@@ -56,32 +56,34 @@ For a per-user installation, download `install.ps1` from the [latest release](ht
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-The installer verifies the release SHA256 and installs to `%LOCALAPPDATA%\Programs\CodexUsage` without administrator access. It adds a Start menu shortcut and an entry in Windows Installed Apps.
+The installer verifies the release SHA256 and installs to `%LOCALAPPDATA%\Programs\AIUsage` without administrator access. It adds a Start menu shortcut and an entry in Windows Installed Apps.
 
-For portable use, download `codex-usage.exe` from the same release and run it from any user-writable directory. You can also build it locally:
+For portable use, download `ai-usage.exe` from the same release and run it from any user-writable directory. You can also build it locally. Regenerate the app icon first so the executable uses the current branding:
 
 ```powershell
+python -m pip install Pillow==11.3.0
+python scripts/generate_icons.py
 cargo build --release
 ```
 
-Local builds create the executable at `target\release\codex-usage.exe`.
+Local builds create the executable at `target\release\ai-usage.exe`.
 
 ## Uninstall
 
-Uninstall **Codex Usage** from Windows Settings > Apps > Installed apps, or run:
+Uninstall **AI Usage** from Windows Settings > Apps > Installed apps, or run:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\CodexUsage\uninstall.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\AIUsage\uninstall.ps1"
 ```
 
-Uninstalling preserves `%APPDATA%\CodexUsage\settings.json`. Add `-RemoveSettings` to delete settings explicitly. See [Installation model](docs/installation.md) for upgrade, portable, startup, and WinGet behavior.
+Uninstalling preserves `%APPDATA%\AIUsage\settings.json`. Add `-RemoveSettings` to delete settings explicitly. See [Installation model](docs/installation.md) for upgrade, portable, startup, and WinGet behavior.
 
 ## Use
 
 Run:
 
 ```powershell
-codex-usage
+ai-usage
 ```
 
 Once running, it will appear in your taskbar and as one tray icon in the notification area.
@@ -123,13 +125,13 @@ In Simplified Chinese, the compact taskbar rows use `5h` / `7d`, one continuous 
 If you need to troubleshoot startup or visibility issues, run:
 
 ```powershell
-codex-usage --diagnose
+ai-usage --diagnose
 ```
 
 This writes a log file to:
 
 ```text
-%TEMP%\codex-usage.log
+%TEMP%\ai-usage.log
 ```
 
 The log records the application version, install channel, executable path, polling failure category, and retry timing. It does not log access tokens or credential contents. See [Troubleshooting](docs/troubleshooting.md) for the taskbar error labels and recovery steps.
@@ -137,7 +139,7 @@ The log records the application version, install channel, executable path, polli
 Settings are saved to:
 
 ```text
-%APPDATA%\CodexUsage\settings.json
+%APPDATA%\AIUsage\settings.json
 ```
 
 ## Account Support
@@ -216,6 +218,6 @@ If the newer usage endpoint is unavailable, it can fall back to reading the rate
 
 This project is licensed under the MIT License. The original [LICENSE](LICENSE) and copyright notice are preserved.
 
-Codex Usage is a maintained derivative of [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor). Thanks to Craig Constable and the upstream contributors for the original project. Changes in this repository are not affiliated with or endorsed by the upstream maintainers or OpenAI.
+AI Usage is a maintained derivative of [CodeZeno/Claude-Code-Usage-Monitor](https://github.com/CodeZeno/Claude-Code-Usage-Monitor). Thanks to Craig Constable and the upstream contributors for the original project. Changes in this repository are not affiliated with or endorsed by the upstream maintainers or OpenAI.
 
 If you want to inspect the behavior or audit the code, everything is in this repository.

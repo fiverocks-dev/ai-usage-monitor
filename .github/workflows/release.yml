@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  RELEASE_ASSET_NAME: codex-usage.exe
+  RELEASE_ASSET_NAME: ai-usage.exe
 
 jobs:
   build:
@@ -24,6 +24,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
 
+      - name: Generate app icons
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check Pillow==11.3.0
+          python scripts/generate_icons.py
+
       - name: Build release binary
         run: cargo build --release
 
@@ -31,11 +37,14 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item target/release/codex-usage.exe dist/codex-usage.exe
+          Copy-Item target/release/ai-usage.exe dist/ai-usage.exe
+          # Compatibility alias for Codex Usage versions that still request the old asset name.
+          Copy-Item target/release/ai-usage.exe dist/codex-usage.exe
           Copy-Item scripts/install.ps1 dist/install.ps1
           Copy-Item scripts/uninstall.ps1 dist/uninstall.ps1
 
-          $hash = (Get-FileHash -Algorithm SHA256 dist/codex-usage.exe).Hash.ToLowerInvariant()
+          $hash = (Get-FileHash -Algorithm SHA256 dist/ai-usage.exe).Hash.ToLowerInvariant()
+          "$hash  ai-usage.exe" | Set-Content -Encoding ascii dist/ai-usage.exe.sha256
           "$hash  codex-usage.exe" | Set-Content -Encoding ascii dist/codex-usage.exe.sha256
 
       - name: Upload release assets
@@ -62,6 +71,8 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: |
+            dist/ai-usage.exe
+            dist/ai-usage.exe.sha256
             dist/codex-usage.exe
             dist/codex-usage.exe.sha256
             dist/install.ps1
