@@ -1687,7 +1687,7 @@ mod tests {
             true,
             false,
             || Err(PollError::AuthRequired),
-            || Ok((Some(usage_with_session_percent(42.0)),
+            || Ok(usage_with_session_percent(42.0)),
             || unreachable!("antigravity is disabled"),
         )
         .expect("codex data should keep the poll successful");
@@ -1702,7 +1702,7 @@ mod tests {
             true,
             true,
             false,
-            || Ok((Some(usage_with_session_percent(64.0)),
+            || Ok(usage_with_session_percent(64.0)),
             || Err(PollError::RequestFailed),
             || unreachable!("antigravity is disabled"),
         )
@@ -1734,7 +1734,7 @@ mod tests {
             true,
             true,
             || unreachable!("claude code is disabled"),
-            || Ok((Some(usage_with_session_percent(42.0)),
+            || Ok(usage_with_session_percent(42.0)),
             || Err(PollError::NoCredentials),
         )
         .expect("codex data should keep the poll successful");
