@@ -424,8 +424,8 @@ fn wait_for_process_exit(pid: u32, timeout: Duration) -> Result<(), String> {
 
 fn updates_dir() -> Result<PathBuf, String> {
     dirs::data_local_dir()
-        .map(|dir| dir.join("CodexUsage").join("updates"))
-        .or_else(|| Some(std::env::temp_dir().join("CodexUsage").join("updates")))
+        .map(|dir| dir.join("AIUsage").join("updates"))
+        .or_else(|| Some(std::env::temp_dir().join("AIUsage").join("updates")))
         .ok_or_else(|| "Unable to resolve a writable local updates directory.".to_string())
 }
 
@@ -622,7 +622,7 @@ mod tests {
     fn parses_release_checksum_with_filename() {
         let hash = "75761c6dff9c833d0a6b7a09992ce53bd417cf4a5234c065e06b1968171e2222";
         assert_eq!(
-            parse_release_checksum(&format!("{hash}  codex-usage.exe\n")).unwrap(),
+            parse_release_checksum(&format!("{hash}  ai-usage.exe\n")).unwrap(),
             hash.to_ascii_uppercase()
         );
         assert!(parse_release_checksum("not-a-checksum").is_err());
