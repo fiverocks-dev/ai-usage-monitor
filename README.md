@@ -9,9 +9,9 @@
 
 ![Screenshot](.github/animation.gif)
 
-A lightweight native Windows taskbar widget for monitoring Codex usage, with optional Claude Code and Google Antigravity usage display.
+A lightweight native Windows taskbar widget for monitoring AI usage across Codex, Claude Code, and Google Antigravity.
 
-It sits in your taskbar and shows how much of your Codex usage window remains without opening the Codex app or account usage page.
+It sits in your taskbar and shows the remaining quota for the services you enable without repeatedly opening their apps or usage pages.
 
 ## What You Get
 
@@ -73,7 +73,7 @@ Local builds create the executable at `target\release\ai-usage.exe`.
 Uninstall **AI Usage** from Windows Settings > Apps > Installed apps, or run:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\CodexUsage\uninstall.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\AIUsage\uninstall.ps1"
 ```
 
 Uninstalling preserves `%APPDATA%\AIUsage\settings.json`. Add `-RemoveSettings` to delete settings explicitly. See [Installation model](docs/installation.md) for upgrade, portable, startup, and WinGet behavior.
