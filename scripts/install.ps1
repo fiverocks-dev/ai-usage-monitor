@@ -189,20 +189,6 @@ try {
             $Shortcut.Save()
         }
 
-        Remove-Item -LiteralPath $LegacyShortcutPath -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $LegacyDesktopShortcutPath -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $LegacyUninstallKey -Recurse -Force -ErrorAction SilentlyContinue
-
-        # Remove only known legacy app files, preserving any unexpected user files.
-        Remove-Item -LiteralPath $LegacyTargetPath -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $LegacyUninstaller -Force -ErrorAction SilentlyContinue
-        if (Test-Path -LiteralPath $LegacyInstallDirectory -PathType Container) {
-            $LegacyRemaining = @(Get-ChildItem -LiteralPath $LegacyInstallDirectory -Force -ErrorAction SilentlyContinue)
-            if ($LegacyRemaining.Count -eq 0) {
-                Remove-Item -LiteralPath $LegacyInstallDirectory -Force -ErrorAction SilentlyContinue
-            }
-        }
-
         $IconRefreshTool = Join-Path $env:SystemRoot 'System32\ie4uinit.exe'
         if (Test-Path -LiteralPath $IconRefreshTool -PathType Leaf) {
             Start-Process -FilePath $IconRefreshTool -ArgumentList '-show' -WindowStyle Hidden -Wait
@@ -213,6 +199,7 @@ try {
             Remove-Item -LiteralPath $TargetPath -Force -ErrorAction SilentlyContinue
             Move-Item -LiteralPath $BackupPath -Destination $TargetPath -Force
         }
+        Remove-ItemProperty -Path $RunKey -Name 'AIUsage' -ErrorAction SilentlyContinue
         if ($StartupWasEnabled -and $ExistingStartup -and $ExistingStartupKey) {
             Set-ItemProperty -Path $RunKey -Name $ExistingStartupKey -Value $ExistingStartup
         }
@@ -220,6 +207,19 @@ try {
     }
 
     Remove-Item -LiteralPath $BackupPath -Force -ErrorAction SilentlyContinue
+
+    # Migration cleanup happens only after the new installation is committed.
+    Remove-Item -LiteralPath $LegacyShortcutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyDesktopShortcutPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyUninstallKey -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyTargetPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $LegacyUninstaller -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $LegacyInstallDirectory -PathType Container) {
+        $LegacyRemaining = @(Get-ChildItem -LiteralPath $LegacyInstallDirectory -Force -ErrorAction SilentlyContinue)
+        if ($LegacyRemaining.Count -eq 0) {
+            Remove-Item -LiteralPath $LegacyInstallDirectory -Force -ErrorAction SilentlyContinue
+        }
+    }
 
     if (-not $NoLaunch) {
         Start-Process -FilePath $TargetPath -WorkingDirectory $InstallDirectory -WindowStyle Hidden
