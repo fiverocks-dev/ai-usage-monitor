@@ -1910,10 +1910,14 @@ fn render_layered() {
         codex_session_text,
         codex_weekly_pct,
         codex_weekly_text,
-        antigravity_session_pct,
+        antigravity_gemini_session_pct,
         antigravity_gemini_session_text,
-        antigravity_weekly_pct,
+        antigravity_gemini_weekly_pct,
         antigravity_gemini_weekly_text,
+        antigravity_claude_session_pct,
+        antigravity_claude_session_text,
+        antigravity_claude_weekly_pct,
+        antigravity_claude_weekly_text,
         show_claude_code,
         show_codex,
         show_antigravity,
@@ -1940,6 +1944,10 @@ fn render_layered() {
                 s.antigravity_gemini_session_text.clone(),
                 s.antigravity_gemini_weekly_percent,
                 s.antigravity_gemini_weekly_text.clone(),
+                s.antigravity_claude_session_percent,
+                s.antigravity_claude_session_text.clone(),
+                s.antigravity_claude_weekly_percent,
+                s.antigravity_claude_weekly_text.clone(),
                 s.show_claude_code,
                 s.show_codex,
                 s.show_antigravity,
@@ -1965,7 +1973,8 @@ fn render_layered() {
 
     let accent = claude_accent_color();
     let codex_accent = codex_accent_color(is_dark);
-    let antigravity_accent = antigravity_gemini_accent_color();
+    let antigravity_gemini_accent = antigravity_gemini_accent_color();
+    let antigravity_claude_accent = antigravity_claude_accent_color();
     let track = if is_dark {
         Color::from_hex("#444444")
     } else {
@@ -2034,17 +2043,22 @@ fn render_layered() {
             &codex_session_text,
             codex_weekly_pct,
             &codex_weekly_text,
-            antigravity_session_pct,
+            antigravity_gemini_session_pct,
             &antigravity_gemini_session_text,
-            antigravity_weekly_pct,
+            antigravity_gemini_weekly_pct,
             &antigravity_gemini_weekly_text,
+            antigravity_claude_session_pct,
+            &antigravity_claude_session_text,
+            antigravity_claude_weekly_pct,
+            &antigravity_claude_weekly_text,
             show_claude_code,
             show_codex,
             show_antigravity,
             show_session_window,
             show_weekly_window,
             &codex_accent,
-            &antigravity_accent,
+            &antigravity_gemini_accent,
+            &antigravity_claude_accent,
         );
 
         // Background pixels → alpha 1 (nearly invisible but still hittable for right-click).
@@ -2114,25 +2128,36 @@ fn paint_content(
     codex_session_text: &str,
     codex_weekly_pct: f64,
     codex_weekly_text: &str,
-    antigravity_session_pct: f64,
+    antigravity_gemini_session_pct: f64,
     antigravity_gemini_session_text: &str,
-    antigravity_weekly_pct: f64,
+    antigravity_gemini_weekly_pct: f64,
     antigravity_gemini_weekly_text: &str,
+    antigravity_claude_session_pct: f64,
+    antigravity_claude_session_text: &str,
+    antigravity_claude_weekly_pct: f64,
+    antigravity_claude_weekly_text: &str,
     show_claude_code: bool,
     show_codex: bool,
     show_antigravity: bool,
     show_session_window: bool,
     show_weekly_window: bool,
     codex_accent: &Color,
-    antigravity_accent: &Color,
+    antigravity_gemini_accent: &Color,
+    antigravity_claude_accent: &Color,
 ) {
     unsafe {
         let session_pct = usage_percent_for_display(session_pct);
         let weekly_pct = usage_percent_for_display(weekly_pct);
         let codex_session_pct = usage_percent_for_display(codex_session_pct);
         let codex_weekly_pct = usage_percent_for_display(codex_weekly_pct);
-        let antigravity_session_pct = usage_percent_for_display(antigravity_session_pct);
-        let antigravity_weekly_pct = usage_percent_for_display(antigravity_weekly_pct);
+        let antigravity_gemini_session_pct =
+            usage_percent_for_display(antigravity_gemini_session_pct);
+        let antigravity_gemini_weekly_pct =
+            usage_percent_for_display(antigravity_gemini_weekly_pct);
+        let antigravity_claude_session_pct =
+            usage_percent_for_display(antigravity_claude_session_pct);
+        let antigravity_claude_weekly_pct =
+            usage_percent_for_display(antigravity_claude_weekly_pct);
         let (label_width, text_width) = usage_layout_widths(language);
 
         let client_rect = RECT {
@@ -2184,6 +2209,17 @@ fn paint_content(
         let _ = DeleteObject(right_brush);
 
         let content_x = sc(LEFT_DIVIDER_W) + sc(DIVIDER_RIGHT_MARGIN);
+        let time_separator_x = content_x + sc(label_width) + sc(LABEL_RIGHT_MARGIN);
+        let separator_brush = CreateSolidBrush(COLORREF(track.to_colorref()));
+        let separator_rect = RECT {
+            left: time_separator_x,
+            top: sc(5),
+            right: time_separator_x + sc(TIME_SEPARATOR_WIDTH),
+            bottom: height - sc(5),
+        };
+        FillRect(hdc, &separator_rect, separator_brush);
+        let _ = DeleteObject(separator_brush);
+
         let row2_y = height - sc(5) - sc(SEGMENT_H);
         let row1_y = row2_y - sc(10) - sc(SEGMENT_H);
         let single_row_y = (height - sc(SEGMENT_H)) / 2;
@@ -2226,14 +2262,17 @@ fn paint_content(
                 session_text,
                 codex_session_pct,
                 codex_session_text,
-                antigravity_session_pct,
+                antigravity_gemini_session_pct,
                 antigravity_gemini_session_text,
+                antigravity_claude_session_pct,
+                antigravity_claude_session_text,
                 show_claude_code,
                 show_codex,
                 show_antigravity,
                 accent,
                 codex_accent,
-                antigravity_accent,
+                antigravity_gemini_accent,
+                antigravity_claude_accent,
                 track,
                 label_width,
                 text_width,
@@ -2255,14 +2294,17 @@ fn paint_content(
                 weekly_text,
                 codex_weekly_pct,
                 codex_weekly_text,
-                antigravity_weekly_pct,
+                antigravity_gemini_weekly_pct,
                 antigravity_gemini_weekly_text,
+                antigravity_claude_weekly_pct,
+                antigravity_claude_weekly_text,
                 show_claude_code,
                 show_codex,
                 show_antigravity,
                 accent,
                 codex_accent,
-                antigravity_accent,
+                antigravity_gemini_accent,
+                antigravity_claude_accent,
                 track,
                 label_width,
                 text_width,
@@ -3766,10 +3808,14 @@ fn paint(hdc: HDC, hwnd: HWND) {
         codex_session_text,
         codex_weekly_pct,
         codex_weekly_text,
-        antigravity_session_pct,
+        antigravity_gemini_session_pct,
         antigravity_gemini_session_text,
-        antigravity_weekly_pct,
+        antigravity_gemini_weekly_pct,
         antigravity_gemini_weekly_text,
+        antigravity_claude_session_pct,
+        antigravity_claude_session_text,
+        antigravity_claude_weekly_pct,
+        antigravity_claude_weekly_text,
         show_claude_code,
         show_codex,
         show_antigravity,
@@ -3794,6 +3840,10 @@ fn paint(hdc: HDC, hwnd: HWND) {
                 s.antigravity_gemini_session_text.clone(),
                 s.antigravity_gemini_weekly_percent,
                 s.antigravity_gemini_weekly_text.clone(),
+                s.antigravity_claude_session_percent,
+                s.antigravity_claude_session_text.clone(),
+                s.antigravity_claude_weekly_percent,
+                s.antigravity_claude_weekly_text.clone(),
                 s.show_claude_code,
                 s.show_codex,
                 s.show_antigravity,
@@ -3806,7 +3856,8 @@ fn paint(hdc: HDC, hwnd: HWND) {
 
     let accent = claude_accent_color();
     let codex_accent = codex_accent_color(is_dark);
-    let antigravity_accent = antigravity_gemini_accent_color();
+    let antigravity_gemini_accent = antigravity_gemini_accent_color();
+    let antigravity_claude_accent = antigravity_claude_accent_color();
     let track = if is_dark {
         Color::from_hex("#444444")
     } else {
@@ -3856,17 +3907,22 @@ fn paint(hdc: HDC, hwnd: HWND) {
             &codex_session_text,
             codex_weekly_pct,
             &codex_weekly_text,
-            antigravity_session_pct,
+            antigravity_gemini_session_pct,
             &antigravity_gemini_session_text,
-            antigravity_weekly_pct,
+            antigravity_gemini_weekly_pct,
             &antigravity_gemini_weekly_text,
+            antigravity_claude_session_pct,
+            &antigravity_claude_session_text,
+            antigravity_claude_weekly_pct,
+            &antigravity_claude_weekly_text,
             show_claude_code,
             show_codex,
             show_antigravity,
             show_session_window,
             show_weekly_window,
             &codex_accent,
-            &antigravity_accent,
+            &antigravity_gemini_accent,
+            &antigravity_claude_accent,
         );
 
         let _ = BitBlt(hdc, 0, 0, width, height, mem_dc, 0, 0, SRCCOPY);
@@ -3889,14 +3945,17 @@ fn draw_row(
     claude_text: &str,
     codex_percent: f64,
     codex_text: &str,
-    antigravity_percent: f64,
-    antigravity_text: &str,
+    antigravity_gemini_percent: f64,
+    antigravity_gemini_text: &str,
+    antigravity_claude_percent: f64,
+    antigravity_claude_text: &str,
     show_claude_code: bool,
     show_codex: bool,
     show_antigravity: bool,
     claude_accent: &Color,
     codex_accent: &Color,
-    antigravity_accent: &Color,
+    antigravity_gemini_accent: &Color,
+    antigravity_claude_accent: &Color,
     track: &Color,
     label_width: i32,
     text_width: i32,
@@ -3915,8 +3974,13 @@ fn draw_row(
     } else {
         *text_color
     };
-    let antigravity_value_color = if use_model_text_colors {
+    let antigravity_gemini_value_color = if use_model_text_colors {
         antigravity_gemini_usage_text_color(is_dark)
+    } else {
+        *text_color
+    };
+    let antigravity_claude_value_color = if use_model_text_colors {
+        antigravity_claude_usage_text_color(is_dark)
     } else {
         *text_color
     };
@@ -3937,7 +4001,11 @@ fn draw_row(
             DT_LEFT | DT_VCENTER | DT_SINGLELINE,
         );
 
-        let mut model_x = x + sc(label_width) + sc(LABEL_RIGHT_MARGIN);
+        let mut model_x = x
+            + sc(label_width)
+            + sc(LABEL_RIGHT_MARGIN)
+            + sc(TIME_SEPARATOR_WIDTH)
+            + sc(TIME_SEPARATOR_RIGHT_MARGIN);
         if show_claude_code {
             draw_provider_badge(hdc, model_x, y, "CL", claude_accent);
             draw_usage_bar(
@@ -3971,17 +4039,32 @@ fn draw_row(
             model_x += model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN);
         }
         if show_antigravity {
-            draw_provider_badge(hdc, model_x, y, "AG", antigravity_accent);
+            draw_provider_badge(hdc, model_x, y, "AG-G", antigravity_gemini_accent);
             draw_usage_bar(
                 hdc,
                 model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
                 y,
                 segment_count,
-                antigravity_percent,
-                antigravity_text,
-                antigravity_accent,
+                antigravity_gemini_percent,
+                antigravity_gemini_text,
+                antigravity_gemini_accent,
                 track,
-                &antigravity_value_color,
+                &antigravity_gemini_value_color,
+                text_width,
+            );
+            model_x += model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN);
+
+            draw_provider_badge(hdc, model_x, y, "AG-C", antigravity_claude_accent);
+            draw_usage_bar(
+                hdc,
+                model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
+                y,
+                segment_count,
+                antigravity_claude_percent,
+                antigravity_claude_text,
+                antigravity_claude_accent,
+                track,
+                &antigravity_claude_value_color,
                 text_width,
             );
         }
