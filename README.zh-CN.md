@@ -5,13 +5,13 @@
 
 # AI Usage
 
-<img src=".github/ai-usage-icon.png" alt="AI Usage 图标" width="96" height="96">
+<img src="src/icons/256.svg" alt="AI Usage 图标" width="96" height="96">
 
 ![运行效果](.github/animation.gif)
 
-一款轻量级的 Windows 原生任务栏小组件，用于监控 Codex 用量，并可选择同时显示 Claude Code 和 Google Antigravity 用量。
+一款轻量级的 Windows 原生任务栏小组件，用于统一监控 Codex、Claude Code 和 Google Antigravity 的 AI 用量。
 
-它常驻任务栏，无需打开 Codex 应用或账户用量页面，就能随时查看 Codex 用量窗口还剩多少。
+它常驻任务栏，可直接查看已启用服务的剩余配额，无需反复打开各应用或用量页面。
 
 ## 功能亮点
 
@@ -73,7 +73,7 @@ cargo build --release
 可在 Windows“设置”>“应用”>“已安装的应用”中卸载 **AI Usage**，或运行：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\CodexUsage\uninstall.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\AIUsage\uninstall.ps1"
 ```
 
 卸载时会保留 `%APPDATA%\AIUsage\settings.json`。如需同时删除设置，请显式添加 `-RemoveSettings`。有关升级、便携版、开机启动和 WinGet 的说明，请参阅[安装机制](docs/installation.md)。
