@@ -56,11 +56,13 @@ Antigravity 也是可选功能。若要显示其用量，请安装并登录 Goog
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-安装程序会校验发布文件的 SHA256，并在无需管理员权限的情况下安装到 `%LOCALAPPDATA%\Programs\CodexUsage`。它还会创建开始菜单快捷方式，并在 Windows“已安装的应用”中添加卸载项。
+安装程序会校验发布文件的 SHA256，并在无需管理员权限的情况下安装到 `%LOCALAPPDATA%\Programs\AIUsage`。它还会创建开始菜单快捷方式，并在 Windows“已安装的应用”中添加卸载项。
 
-如需便携使用，可从同一版本页面下载 `ai-usage.exe`，放在任意具有写入权限的目录中运行。你也可以在本地构建：
+如需便携使用，可从同一版本页面下载 `ai-usage.exe`，放在任意具有写入权限的目录中运行。你也可以在本地构建。请先重新生成应用图标，以确保可执行文件使用当前品牌：
 
 ```powershell
+python -m pip install Pillow==11.3.0
+python scripts/generate_icons.py
 cargo build --release
 ```
 
