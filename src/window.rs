@@ -282,11 +282,30 @@ fn spawn_taskbar_watchdog() {
             continue;
         };
 
+        if !native_interop::window_exists(hwnd) {
+            diagnose::log("watchdog: widget window was destroyed -> relaunching");
+            relaunch_self();
+            continue;
+        }
+
         if dragging {
             continue;
         }
 
+        let parent_matches = native_interop::get_parent_window(hwnd) == Some(taskbar.hwnd);
+        if !parent_matches {
+            diagnose::log("watchdog: widget lost taskbar parent -> reattaching");
+            unsafe {
+                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+            }
+            continue;
+        }
+
         let Some(actual) = native_interop::get_window_rect_safe(hwnd) else {
+            diagnose::log("watchdog: unable to read widget rect -> requesting recovery");
+            unsafe {
+                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+            }
             continue;
         };
         let expected = expected_widget_screen_rect(*taskbar, tray_offset);
@@ -2916,6 +2935,21 @@ unsafe extern "system" fn wnd_proc(
         }
         WM_ERASEBKGND => LRESULT(1),
         WM_APP_TASKBAR_REPOSITION => {
+            let (taskbar_hwnd, taskbar_index) = {
+                let state = lock_state();
+                state
+                    .as_ref()
+                    .map(|s| (s.taskbar_hwnd, s.taskbar_index))
+                    .unwrap_or((None, 0))
+            };
+
+            let parent_matches = taskbar_hwnd
+                .is_some_and(|taskbar_hwnd| native_interop::get_parent_window(hwnd) == Some(taskbar_hwnd));
+            if !parent_matches {
+                diagnose::log("recovery: reattaching widget to taskbar");
+                let _ = attach_to_taskbar(hwnd, taskbar_index);
+            }
+
             position_at_taskbar();
             render_layered();
             LRESULT(0)
