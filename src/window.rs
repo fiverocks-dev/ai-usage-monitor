@@ -258,14 +258,8 @@ fn spawn_taskbar_watchdog() {
         let snapshot = {
             let state = lock_state();
             state.as_ref().and_then(|s| {
-                s.taskbar_hwnd.map(|taskbar_hwnd| {
-                    (
-                        taskbar_hwnd,
-                        s.hwnd.to_hwnd(),
-                        s.tray_offset,
-                        s.dragging,
-                    )
-                })
+                s.taskbar_hwnd
+                    .map(|taskbar_hwnd| (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging))
             })
         };
         // Only relevant once we have embedded into a taskbar at least once.
@@ -302,21 +296,13 @@ fn spawn_taskbar_watchdog() {
                 actual.left, actual.top, expected.left, expected.top
             ));
             unsafe {
-                let _ = PostMessageW(
-                    hwnd,
-                    WM_APP_TASKBAR_REPOSITION,
-                    WPARAM(0),
-                    LPARAM(0),
-                );
+                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
             }
         }
     });
 }
 
-fn expected_widget_screen_rect(
-    taskbar: native_interop::TaskbarWindow,
-    tray_offset: i32,
-) -> RECT {
+fn expected_widget_screen_rect(taskbar: native_interop::TaskbarWindow, tray_offset: i32) -> RECT {
     let taskbar_height = taskbar.rect.bottom - taskbar.rect.top;
     let widget_width = total_widget_width();
     let widget_height = sc(WIDGET_HEIGHT);
@@ -335,8 +321,7 @@ fn expected_widget_screen_rect(
 }
 
 fn rect_position_differs(actual: RECT, expected: RECT, tolerance: i32) -> bool {
-    (actual.left - expected.left).abs() > tolerance
-        || (actual.top - expected.top).abs() > tolerance
+    (actual.left - expected.left).abs() > tolerance || (actual.top - expected.top).abs() > tolerance
 }
 
 fn load_embedded_app_icons() -> (HICON, HICON) {
@@ -4297,7 +4282,6 @@ mod tests {
         };
         assert!(rect_position_differs(actual, expected, 2));
     }
-
 
     #[test]
     fn service_tooltip_combines_visible_quota_rows() {
