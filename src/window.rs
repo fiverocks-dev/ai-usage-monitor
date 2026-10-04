@@ -151,7 +151,9 @@ const IDM_ALERT_30: u16 = 83;
 
 const WM_DPICHANGED_MSG: u32 = 0x02E0;
 const WM_APP_UPDATE_CHECK_COMPLETE: u32 = WM_APP + 2;
+const WM_APP_TASKBAR_REPOSITION: u32 = native_interop::WM_APP + 4;
 const TRAY_ICON_UPDATE_REPOSITION_SUPPRESS_MS: u64 = 750;
+const TASKBAR_POSITION_TOLERANCE_PX: i32 = 2;
 
 /// How often the watchdog thread polls for an explorer.exe restart (which
 /// recreates the taskbar and wipes our tray-icon registration).
@@ -242,33 +244,84 @@ fn relaunch_self() {
     }
 }
 
-/// Detect explorer.exe restarts and recover from them.
+/// Detect taskbar recreation or unexpected movement of the embedded widget.
 ///
-/// Once explorer destroys the taskbar, our embedded child window is destroyed
-/// and the UI message loop is dead, so recovery cannot happen in-process. This
-/// dedicated thread (independent of the dead message loop) polls the taskbar
-/// handle and, when it changes, relaunches the widget as a fresh process.
+/// Explorer restarts destroy the taskbar child window, which requires a fresh
+/// process. Fast user switching can leave the taskbar HWND alive while Windows
+/// moves our child window to an invalid location such as the monitor origin.
+/// In that case the message loop is still healthy, so ask it to restore the
+/// saved taskbar-relative position without changing the persisted tray offset.
 fn spawn_taskbar_watchdog() {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(TASKBAR_WATCH_INTERVAL_SECS));
-        let stored = {
+
+        let snapshot = {
             let state = lock_state();
-            state.as_ref().and_then(|s| s.taskbar_hwnd)
+            state.as_ref().and_then(|s| {
+                s.taskbar_hwnd
+                    .map(|taskbar_hwnd| (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging))
+            })
         };
         // Only relevant once we have embedded into a taskbar at least once.
-        let Some(old) = stored else {
+        let Some((old, hwnd, tray_offset, dragging)) = snapshot else {
             continue;
         };
+
         let taskbars = native_interop::find_taskbars();
-        if !taskbars.is_empty() && !taskbars.iter().any(|taskbar| taskbar.hwnd == old) {
+        if taskbars.is_empty() {
+            continue;
+        }
+
+        let Some(taskbar) = taskbars.iter().find(|taskbar| taskbar.hwnd == old) else {
             let new = taskbars[0].hwnd;
             diagnose::log(format!(
                 "watchdog: taskbar changed old={:?} new={:?} -> relaunching",
                 old.0, new.0
             ));
             relaunch_self();
+            continue;
+        };
+
+        if dragging {
+            continue;
+        }
+
+        let Some(actual) = native_interop::get_window_rect_safe(hwnd) else {
+            continue;
+        };
+        let expected = expected_widget_screen_rect(*taskbar, tray_offset);
+        if rect_position_differs(actual, expected, TASKBAR_POSITION_TOLERANCE_PX) {
+            diagnose::log(format!(
+                "watchdog: widget position drift actual=({}, {}) expected=({}, {}) -> repositioning",
+                actual.left, actual.top, expected.left, expected.top
+            ));
+            unsafe {
+                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+            }
         }
     });
+}
+
+fn expected_widget_screen_rect(taskbar: native_interop::TaskbarWindow, tray_offset: i32) -> RECT {
+    let taskbar_height = taskbar.rect.bottom - taskbar.rect.top;
+    let widget_width = total_widget_width();
+    let widget_height = sc(WIDGET_HEIGHT);
+    let tray_left = tray_left_for_taskbar(taskbar.hwnd, taskbar.rect);
+    let max_offset = (tray_left - taskbar.rect.left - widget_width).max(0);
+    let tray_offset = tray_offset.clamp(0, max_offset);
+    let left = tray_left - widget_width - tray_offset;
+    let top = compute_anchor_y(taskbar.rect.top, taskbar_height, widget_height);
+
+    RECT {
+        left,
+        top,
+        right: left + widget_width,
+        bottom: top + widget_height,
+    }
+}
+
+fn rect_position_differs(actual: RECT, expected: RECT, tolerance: i32) -> bool {
+    (actual.left - expected.left).abs() > tolerance || (actual.top - expected.top).abs() > tolerance
 }
 
 fn load_embedded_app_icons() -> (HICON, HICON) {
@@ -2862,6 +2915,11 @@ unsafe extern "system" fn wnd_proc(
             LRESULT(0)
         }
         WM_ERASEBKGND => LRESULT(1),
+        WM_APP_TASKBAR_REPOSITION => {
+            position_at_taskbar();
+            render_layered();
+            LRESULT(0)
+        }
         WM_DISPLAYCHANGE | WM_DPICHANGED_MSG | WM_SETTINGCHANGE => {
             if msg == WM_DPICHANGED_MSG {
                 let new_dpi = (wparam.0 & 0xFFFF) as u32;
@@ -4190,6 +4248,40 @@ fn draw_rounded_rect(hdc: HDC, rect: &RECT, color: &Color, radius: i32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn taskbar_position_drift_ignores_small_rounding_changes() {
+        let actual = RECT {
+            left: 100,
+            top: 200,
+            right: 300,
+            bottom: 240,
+        };
+        let expected = RECT {
+            left: 102,
+            top: 199,
+            right: 302,
+            bottom: 239,
+        };
+        assert!(!rect_position_differs(actual, expected, 2));
+    }
+
+    #[test]
+    fn taskbar_position_drift_detects_origin_reset() {
+        let actual = RECT {
+            left: 0,
+            top: 0,
+            right: 200,
+            bottom: 40,
+        };
+        let expected = RECT {
+            left: 1500,
+            top: 1040,
+            right: 1700,
+            bottom: 1080,
+        };
+        assert!(rect_position_differs(actual, expected, 2));
+    }
 
     #[test]
     fn service_tooltip_combines_visible_quota_rows() {
