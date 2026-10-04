@@ -2943,8 +2943,9 @@ unsafe extern "system" fn wnd_proc(
                     .unwrap_or((None, 0))
             };
 
-            let parent_matches = taskbar_hwnd
-                .is_some_and(|taskbar_hwnd| native_interop::get_parent_window(hwnd) == Some(taskbar_hwnd));
+            let parent_matches = taskbar_hwnd.is_some_and(|taskbar_hwnd| {
+                native_interop::get_parent_window(hwnd) == Some(taskbar_hwnd)
+            });
             if !parent_matches {
                 diagnose::log("recovery: reattaching widget to taskbar");
                 let _ = attach_to_taskbar(hwnd, taskbar_index);
