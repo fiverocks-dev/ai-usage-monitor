@@ -137,6 +137,18 @@ pub fn get_window_rect_safe(hwnd: HWND) -> Option<RECT> {
     }
 }
 
+pub fn window_exists(hwnd: HWND) -> bool {
+    unsafe { IsWindow(hwnd).as_bool() }
+}
+
+pub fn get_parent_window(hwnd: HWND) -> Option<HWND> {
+    unsafe {
+        GetParent(hwnd)
+            .ok()
+            .filter(|parent| *parent != HWND::default())
+    }
+}
+
 /// Embed our window as a child of the taskbar
 pub fn embed_in_taskbar(hwnd: HWND, taskbar_hwnd: HWND) {
     unsafe {
