@@ -261,8 +261,9 @@ fn spawn_taskbar_watchdog() {
             let snapshot = {
                 let state = lock_state();
                 state.as_ref().and_then(|s| {
-                    s.taskbar_hwnd
-                        .map(|taskbar_hwnd| (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging))
+                    s.taskbar_hwnd.map(|taskbar_hwnd| {
+                        (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging)
+                    })
                 })
             };
             // Only relevant once we have embedded into a taskbar at least once.
