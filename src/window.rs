@@ -264,11 +264,16 @@ fn spawn_taskbar_watchdog() {
         };
         // Only relevant once we have embedded into a taskbar at least once.
         let Some((old, hwnd, tray_offset, dragging)) = snapshot else {
+            diagnose::log("watchdog snapshot: no embedded taskbar state");
             continue;
         };
 
         let taskbars = native_interop::find_taskbars();
+        if diagnose::is_enabled() {
+            log_taskbar_debug_snapshot(hwnd, old, tray_offset, dragging, &taskbars);
+        }
         if taskbars.is_empty() {
+            diagnose::log("watchdog: no taskbars found");
             continue;
         }
 
@@ -319,6 +324,69 @@ fn spawn_taskbar_watchdog() {
             }
         }
     });
+}
+
+fn log_taskbar_debug_snapshot(
+    hwnd: HWND,
+    stored_taskbar: HWND,
+    tray_offset: i32,
+    dragging: bool,
+    taskbars: &[native_interop::TaskbarWindow],
+) {
+    let exists = native_interop::window_exists(hwnd);
+    let parent = native_interop::get_parent_window(hwnd);
+    let actual = native_interop::get_window_rect_safe(hwnd);
+
+    let taskbar_summary = taskbars
+        .iter()
+        .enumerate()
+        .map(|(index, taskbar)| {
+            let tray_rect = native_interop::find_child_window(taskbar.hwnd, "TrayNotifyWnd")
+                .and_then(native_interop::get_window_rect_safe);
+            format!(
+                "#{index}:hwnd={:?}:rect=({}, {}, {}, {}):tray={}",
+                taskbar.hwnd.0,
+                taskbar.rect.left,
+                taskbar.rect.top,
+                taskbar.rect.right,
+                taskbar.rect.bottom,
+                format_optional_rect(tray_rect),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" | ");
+
+    let expected = taskbars
+        .iter()
+        .find(|taskbar| taskbar.hwnd == stored_taskbar)
+        .map(|taskbar| expected_widget_screen_rect(*taskbar, tray_offset));
+
+    diagnose::log(format!(
+        "watchdog snapshot: widget={:?} exists={} parent={:?} stored_taskbar={:?} embedded={} dragging={} tray_offset={} actual={} expected={} taskbars=[{}]",
+        hwnd.0,
+        exists,
+        parent.map(|value| value.0),
+        stored_taskbar.0,
+        {
+            let state = lock_state();
+            state.as_ref().map(|s| s.embedded).unwrap_or(false)
+        },
+        dragging,
+        tray_offset,
+        format_optional_rect(actual),
+        format_optional_rect(expected),
+        taskbar_summary,
+    ));
+}
+
+fn format_optional_rect(rect: Option<RECT>) -> String {
+    rect.map(|rect| {
+        format!(
+            "({}, {}, {}, {})",
+            rect.left, rect.top, rect.right, rect.bottom
+        )
+    })
+    .unwrap_or_else(|| "none".to_string())
 }
 
 fn expected_widget_screen_rect(taskbar: native_interop::TaskbarWindow, tray_offset: i32) -> RECT {
@@ -901,7 +969,20 @@ fn attach_to_taskbar(hwnd: HWND, requested_index: usize) -> bool {
         native_interop::unhook_win_event(hook);
     }
 
+    diagnose::log(format!(
+        "attach: before embed widget={:?} parent={:?} rect={}",
+        hwnd.0,
+        native_interop::get_parent_window(hwnd).map(|value| value.0),
+        format_optional_rect(native_interop::get_window_rect_safe(hwnd))
+    ));
     native_interop::embed_in_taskbar(hwnd, taskbar.hwnd);
+    diagnose::log(format!(
+        "attach: after embed widget={:?} parent={:?} target_taskbar={:?} rect={}",
+        hwnd.0,
+        native_interop::get_parent_window(hwnd).map(|value| value.0),
+        taskbar.hwnd.0,
+        format_optional_rect(native_interop::get_window_rect_safe(hwnd))
+    ));
 
     let tray_notify = native_interop::find_child_window(taskbar.hwnd, "TrayNotifyWnd");
     if tray_notify.is_some() {
