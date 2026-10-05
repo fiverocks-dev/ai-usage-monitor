@@ -259,93 +259,93 @@ fn spawn_taskbar_watchdog() {
             std::thread::sleep(Duration::from_secs(TASKBAR_WATCH_INTERVAL_SECS));
 
             let snapshot = {
-            let state = lock_state();
-            state.as_ref().and_then(|s| {
-                s.taskbar_hwnd
-                    .map(|taskbar_hwnd| (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging))
-            })
-        };
-        // Only relevant once we have embedded into a taskbar at least once.
-        let Some((old, hwnd, tray_offset, dragging)) = snapshot else {
-            diagnose::log("watchdog snapshot: no embedded taskbar state");
-            continue;
-        };
+                let state = lock_state();
+                state.as_ref().and_then(|s| {
+                    s.taskbar_hwnd
+                        .map(|taskbar_hwnd| (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging))
+                })
+            };
+            // Only relevant once we have embedded into a taskbar at least once.
+            let Some((old, hwnd, tray_offset, dragging)) = snapshot else {
+                diagnose::log("watchdog snapshot: no embedded taskbar state");
+                continue;
+            };
 
-        let taskbars = native_interop::find_taskbars();
-        if diagnose::is_enabled() {
-            log_taskbar_debug_snapshot(hwnd, old, tray_offset, dragging, &taskbars);
-        }
-        if taskbars.is_empty() {
-            diagnose::log("watchdog: no taskbars found");
-            continue;
-        }
+            let taskbars = native_interop::find_taskbars();
+            if diagnose::is_enabled() {
+                log_taskbar_debug_snapshot(hwnd, old, tray_offset, dragging, &taskbars);
+            }
+            if taskbars.is_empty() {
+                diagnose::log("watchdog: no taskbars found");
+                continue;
+            }
 
-        let Some(taskbar) = taskbars.iter().find(|taskbar| taskbar.hwnd == old) else {
-            let replacement = last_taskbar_rect.and_then(|last_rect| {
-                taskbars
-                    .iter()
-                    .find(|taskbar| taskbar_rect_matches(taskbar.rect, last_rect))
-                    .copied()
-            });
+            let Some(taskbar) = taskbars.iter().find(|taskbar| taskbar.hwnd == old) else {
+                let replacement = last_taskbar_rect.and_then(|last_rect| {
+                    taskbars
+                        .iter()
+                        .find(|taskbar| taskbar_rect_matches(taskbar.rect, last_rect))
+                        .copied()
+                });
 
-            if let Some(replacement) = replacement {
-                diagnose::log(format!(
-                    "watchdog: taskbar replaced at same monitor old={:?} new={:?} rect=({}, {}, {}, {}) -> relaunching",
-                    old.0,
-                    replacement.hwnd.0,
-                    replacement.rect.left,
-                    replacement.rect.top,
-                    replacement.rect.right,
-                    replacement.rect.bottom
-                ));
+                if let Some(replacement) = replacement {
+                    diagnose::log(format!(
+                        "watchdog: taskbar replaced at same monitor old={:?} new={:?} rect=({}, {}, {}, {}) -> relaunching",
+                        old.0,
+                        replacement.hwnd.0,
+                        replacement.rect.left,
+                        replacement.rect.top,
+                        replacement.rect.right,
+                        replacement.rect.bottom
+                    ));
+                    relaunch_self();
+                } else {
+                    diagnose::log(format!(
+                        "watchdog: stored taskbar temporarily absent old={:?}; waiting for same-monitor taskbar to return",
+                        old.0
+                    ));
+                }
+                continue;
+            };
+
+            last_taskbar_rect = Some(taskbar.rect);
+
+            if !native_interop::window_exists(hwnd) {
+                diagnose::log("watchdog: widget window was destroyed -> relaunching");
                 relaunch_self();
-            } else {
+                continue;
+            }
+
+            if dragging {
+                continue;
+            }
+
+            let parent_matches = native_interop::get_parent_window(hwnd) == Some(taskbar.hwnd);
+            if !parent_matches {
+                diagnose::log("watchdog: widget lost taskbar parent -> reattaching");
+                unsafe {
+                    let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+                }
+                continue;
+            }
+
+            let Some(actual) = native_interop::get_window_rect_safe(hwnd) else {
+                diagnose::log("watchdog: unable to read widget rect -> requesting recovery");
+                unsafe {
+                    let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+                }
+                continue;
+            };
+            let expected = expected_widget_screen_rect(*taskbar, tray_offset);
+            if rect_position_differs(actual, expected, TASKBAR_POSITION_TOLERANCE_PX) {
                 diagnose::log(format!(
-                    "watchdog: stored taskbar temporarily absent old={:?}; waiting for same-monitor taskbar to return",
-                    old.0
+                    "watchdog: widget position drift actual=({}, {}) expected=({}, {}) -> repositioning",
+                    actual.left, actual.top, expected.left, expected.top
                 ));
+                unsafe {
+                    let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+                }
             }
-            continue;
-        };
-
-        last_taskbar_rect = Some(taskbar.rect);
-
-        if !native_interop::window_exists(hwnd) {
-            diagnose::log("watchdog: widget window was destroyed -> relaunching");
-            relaunch_self();
-            continue;
-        }
-
-        if dragging {
-            continue;
-        }
-
-        let parent_matches = native_interop::get_parent_window(hwnd) == Some(taskbar.hwnd);
-        if !parent_matches {
-            diagnose::log("watchdog: widget lost taskbar parent -> reattaching");
-            unsafe {
-                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
-            }
-            continue;
-        }
-
-        let Some(actual) = native_interop::get_window_rect_safe(hwnd) else {
-            diagnose::log("watchdog: unable to read widget rect -> requesting recovery");
-            unsafe {
-                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
-            }
-            continue;
-        };
-        let expected = expected_widget_screen_rect(*taskbar, tray_offset);
-        if rect_position_differs(actual, expected, TASKBAR_POSITION_TOLERANCE_PX) {
-            diagnose::log(format!(
-                "watchdog: widget position drift actual=({}, {}) expected=({}, {}) -> repositioning",
-                actual.left, actual.top, expected.left, expected.top
-            ));
-            unsafe {
-                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
-            }
-        }
         }
     });
 }
