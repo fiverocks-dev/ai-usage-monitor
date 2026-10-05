@@ -252,10 +252,13 @@ fn relaunch_self() {
 /// In that case the message loop is still healthy, so ask it to restore the
 /// saved taskbar-relative position without changing the persisted tray offset.
 fn spawn_taskbar_watchdog() {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(TASKBAR_WATCH_INTERVAL_SECS));
+    std::thread::spawn(move || {
+        let mut last_taskbar_rect: Option<RECT> = None;
 
-        let snapshot = {
+        loop {
+            std::thread::sleep(Duration::from_secs(TASKBAR_WATCH_INTERVAL_SECS));
+
+            let snapshot = {
             let state = lock_state();
             state.as_ref().and_then(|s| {
                 s.taskbar_hwnd
@@ -278,14 +281,34 @@ fn spawn_taskbar_watchdog() {
         }
 
         let Some(taskbar) = taskbars.iter().find(|taskbar| taskbar.hwnd == old) else {
-            let new = taskbars[0].hwnd;
-            diagnose::log(format!(
-                "watchdog: taskbar changed old={:?} new={:?} -> relaunching",
-                old.0, new.0
-            ));
-            relaunch_self();
+            let replacement = last_taskbar_rect.and_then(|last_rect| {
+                taskbars
+                    .iter()
+                    .find(|taskbar| taskbar_rect_matches(taskbar.rect, last_rect))
+                    .copied()
+            });
+
+            if let Some(replacement) = replacement {
+                diagnose::log(format!(
+                    "watchdog: taskbar replaced at same monitor old={:?} new={:?} rect=({}, {}, {}, {}) -> relaunching",
+                    old.0,
+                    replacement.hwnd.0,
+                    replacement.rect.left,
+                    replacement.rect.top,
+                    replacement.rect.right,
+                    replacement.rect.bottom
+                ));
+                relaunch_self();
+            } else {
+                diagnose::log(format!(
+                    "watchdog: stored taskbar temporarily absent old={:?}; waiting for same-monitor taskbar to return",
+                    old.0
+                ));
+            }
             continue;
         };
+
+        last_taskbar_rect = Some(taskbar.rect);
 
         if !native_interop::window_exists(hwnd) {
             diagnose::log("watchdog: widget window was destroyed -> relaunching");
@@ -322,6 +345,7 @@ fn spawn_taskbar_watchdog() {
             unsafe {
                 let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
             }
+        }
         }
     });
 }
@@ -409,6 +433,14 @@ fn expected_widget_screen_rect(taskbar: native_interop::TaskbarWindow, tray_offs
 
 fn rect_position_differs(actual: RECT, expected: RECT, tolerance: i32) -> bool {
     (actual.left - expected.left).abs() > tolerance || (actual.top - expected.top).abs() > tolerance
+}
+
+fn taskbar_rect_matches(a: RECT, b: RECT) -> bool {
+    const TOLERANCE: i32 = 8;
+    (a.left - b.left).abs() <= TOLERANCE
+        && (a.top - b.top).abs() <= TOLERANCE
+        && (a.right - b.right).abs() <= TOLERANCE
+        && (a.bottom - b.bottom).abs() <= TOLERANCE
 }
 
 fn load_embedded_app_icons() -> (HICON, HICON) {
