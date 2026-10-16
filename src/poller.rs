@@ -767,7 +767,37 @@ fn fetch_antigravity_usage_from_endpoint(
     let project = fetch_antigravity_project(base_url, token)?;
     if let Some(project) = project.as_deref() {
         match fetch_antigravity_quota_summary(base_url, token, project) {
-            Ok(data) => return Ok(data),
+            Ok((gemini, claude)) => {
+                if gemini.is_some() && claude.is_some() {
+                    return Ok((gemini, claude));
+                }
+                diagnose::log(format!(
+                    "Antigravity quota summary incomplete: gemini_present={} claude_present={}; trying model quota fallback",
+                    gemini.is_some(),
+                    claude.is_some()
+                ));
+                match fetch_antigravity_model_quotas(base_url, token, Some(project)) {
+                    Ok((model_gemini, model_claude)) => {
+                        let to_usage = |session: Option<UsageSection>| {
+                            session.map(|session| UsageData {
+                                session,
+                                weekly: UsageSection::default(),
+                            })
+                        };
+                        let gemini = gemini.or_else(|| to_usage(model_gemini));
+                        let claude = claude.or_else(|| to_usage(model_claude));
+                        if gemini.is_some() || claude.is_some() {
+                            return Ok((gemini, claude));
+                        }
+                    }
+                    Err(error) => diagnose::log(format!(
+                        "Antigravity partial quota fallback failed: {error:?}"
+                    )),
+                }
+                if gemini.is_some() || claude.is_some() {
+                    return Ok((gemini, claude));
+                }
+            },
             Err(PollError::AuthRequired) => return Err(PollError::AuthRequired),
             Err(error) => diagnose::log(format!(
                 "Antigravity retrieveUserQuotaSummary failed, falling back to model quota: {error:?}"
@@ -874,10 +904,12 @@ fn fetch_antigravity_model_quotas(
             continue;
         };
         let model = model.to_ascii_lowercase();
-        if model.starts_with("gemini") {
+        if model.starts_with("gemini") || model.contains("gemini-") || model.contains("gemini_") {
             gemini_sections.push(section);
-        } else if model.starts_with("claude") {
+        } else if model.starts_with("claude") || model.contains("claude-") || model.contains("claude_") {
             claude_sections.push(section);
+        } else {
+            diagnose::log(format!("Antigravity unrecognized quota model id: {model}"));
         }
     }
 
@@ -954,7 +986,7 @@ fn antigravity_usage_from_summary(
         match family {
             Some(AntigravityFamily::Gemini) if gemini.is_none() => gemini = usage,
             Some(AntigravityFamily::Claude) if claude.is_none() => claude = usage,
-            _ => {}
+            _ => diagnose::log("Antigravity quota summary group not mapped to an empty family slot"),
         }
     }
 
@@ -1742,6 +1774,17 @@ mod tests {
         assert!(data.antigravity.is_none());
         assert!(data.antigravity_claude.is_none());
         assert_eq!(data.codex.unwrap().session.percentage, 42.0);
+    }
+
+    #[test]
+    fn antigravity_summary_with_only_claude_does_not_invent_gemini() {
+        let response: AntigravityQuotaSummaryResponse = serde_json::from_str(
+            r#"{"groups":[{"displayName":"Claude models","buckets":[{"window":"5h","remainingFraction":0.5}]}]}"#,
+        )
+        .expect("valid summary");
+        let (gemini, claude) = antigravity_usage_from_summary(response).expect("partial result");
+        assert!(gemini.is_none());
+        assert!(claude.is_some());
     }
 
     #[test]
