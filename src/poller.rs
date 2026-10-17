@@ -771,6 +771,8 @@ fn fetch_antigravity_usage_from_endpoint(
                 if gemini.is_some() && claude.is_some() {
                     return Ok((gemini, claude));
                 }
+                let mut gemini = gemini;
+                let mut claude = claude;
                 diagnose::log(format!(
                     "Antigravity quota summary incomplete: gemini_present={} claude_present={}; trying model quota fallback",
                     gemini.is_some(),
@@ -784,8 +786,8 @@ fn fetch_antigravity_usage_from_endpoint(
                                 weekly: UsageSection::default(),
                             })
                         };
-                        let gemini = gemini.or_else(|| to_usage(model_gemini));
-                        let claude = claude.or_else(|| to_usage(model_claude));
+                        gemini = gemini.or_else(|| to_usage(model_gemini));
+                        claude = claude.or_else(|| to_usage(model_claude));
                         if gemini.is_some() || claude.is_some() {
                             return Ok((gemini, claude));
                         }
