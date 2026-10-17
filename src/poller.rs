@@ -898,7 +898,18 @@ fn fetch_antigravity_model_quotas(
 
     let mut gemini_sections = Vec::new();
     let mut claude_sections = Vec::new();
+    if diagnose::is_enabled() {
+        diagnose::log(format!("Antigravity model quota response: model_count={}", response.models.len()));
+    }
     for (model, info) in response.models {
+        if diagnose::is_enabled() {
+            diagnose::log(format!(
+                "Antigravity model: id={model:?} quota_present={} remaining_present={} reset_present={}",
+                info.quota_info.is_some(),
+                info.quota_info.as_ref().is_some_and(|q| q.remaining_fraction.is_some()),
+                info.quota_info.as_ref().is_some_and(|q| q.reset_time.is_some())
+            ));
+        }
         let Some(quota) = info.quota_info else {
             continue;
         };
@@ -957,6 +968,30 @@ fn fetch_antigravity_quota_summary(
             return Err(PollError::RequestFailed);
         }
     };
+
+    if diagnose::is_enabled() {
+        let groups = response.groups.as_deref().unwrap_or_default();
+        diagnose::log(format!("Antigravity quota summary: group_count={}", groups.len()));
+        for group in groups {
+            diagnose::log(format!(
+                "Antigravity quota group: name={:?} description={:?} family={:?} bucket_count={}",
+                group.display_name,
+                group.description,
+                antigravity_summary_group_family(group),
+                group.buckets.as_ref().map_or(0, Vec::len)
+            ));
+            for bucket in group.buckets.as_deref().unwrap_or_default() {
+                diagnose::log(format!(
+                    "Antigravity quota bucket: id={:?} name={:?} window={:?} remaining_present={} reset_present={}",
+                    bucket.bucket_id,
+                    bucket.display_name,
+                    bucket.window,
+                    bucket.remaining_fraction.is_some(),
+                    bucket.reset_time.is_some()
+                ));
+            }
+        }
+    }
 
     antigravity_usage_from_summary(response).ok_or(PollError::RequestFailed)
 }
