@@ -906,7 +906,10 @@ fn fetch_antigravity_model_quotas(
         let model = model.to_ascii_lowercase();
         if model.starts_with("gemini") || model.contains("gemini-") || model.contains("gemini_") {
             gemini_sections.push(section);
-        } else if model.starts_with("claude") || model.contains("claude-") || model.contains("claude_") {
+        } else if model.starts_with("claude")
+            || model.contains("claude-")
+            || model.contains("claude_")
+        {
             claude_sections.push(section);
         } else {
             diagnose::log(format!("Antigravity unrecognized quota model id: {model}"));
@@ -986,7 +989,9 @@ fn antigravity_usage_from_summary(
         match family {
             Some(AntigravityFamily::Gemini) if gemini.is_none() => gemini = usage,
             Some(AntigravityFamily::Claude) if claude.is_none() => claude = usage,
-            _ => diagnose::log("Antigravity quota summary group not mapped to an empty family slot"),
+            _ => {
+                diagnose::log("Antigravity quota summary group not mapped to an empty family slot")
+            }
         }
     }
 
