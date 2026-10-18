@@ -594,9 +594,8 @@ fn antigravity_gemini_tooltip(
     show_weekly_window: bool,
     usage: Option<&crate::models::UsageData>,
 ) -> String {
-    let is_model_fallback = usage.is_some_and(|usage| {
-        usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0
-    });
+    let is_model_fallback = usage
+        .is_some_and(|usage| usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0);
     if is_model_fallback {
         let mut parts = Vec::new();
         if show_session_window {
