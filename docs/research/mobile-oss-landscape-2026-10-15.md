@@ -1,3 +1,30 @@
+# 한국어 요약 — 모바일 유사 오픈소스 조사
+
+> 이 문서는 **한국어 요약을 먼저 제공**하고, 아래 영문 상세 조사 원문은 출처·검증 한계를 보존하기 위해 유지합니다. 이후 문서 개정 시 본문도 한국어로 점진적으로 전환합니다.
+
+## 조사 목적과 결론
+
+AI Usage의 모바일 구현 방식 판단을 위해 Android/iOS 사용량 위젯 및 Antigravity 연동 공개 프로젝트를 비교했습니다. **Android 우선 + Kotlin/Compose + Glance + 검증된 순수 Rust Core의 점진적 추출**을 권장합니다. 전체 프로젝트를 즉시 포크하거나 비공개 quota API를 복사하지 않습니다.
+
+| 후보 | 참고할 요소 | 주의점 |
+|---|---|---|
+| [OpenUsage](https://github.com/maplenk/claude-usage) | Android UI, 위젯, Codex device-code 로그인, WorkManager | Claude 세션 쿠키, Codex 비공개 quota endpoint, 갱신 주기 보장 불가 |
+| [CodexBar Android](https://github.com/hyunnnchoi/CodexBar-android) | 다중 Provider, Tile, 위젯, 백그라운드 동기화 | Claude refresh 불안정, CLI 토큰 복사 위험 |
+| [Claude Widget iOS](https://github.com/stanleyswiss/claude-widget-ios) | SwiftUI·WidgetKit·App Group 캐시 | 개인 sideload 전제이며 App Store 승인 근거 아님 |
+| [AntigravityMobile](https://github.com/AvenalJ/AntigravityMobile) | 데스크톱 인증을 활용한 브리지 방식 | PC 상시 실행, 페어링·원격접근 공격면 |
+| 기타 공개 프로젝트 | 디자인·운영 참고 | 라이선스·유지보수·기능 일치 여부 별도 확인 |
+
+**중요:** Gemini CLI quota와 Antigravity Gemini quota, Claude Code와 Antigravity Claude quota를 동일시하지 않습니다. 모바일 로그인 구현 사례는 제3자 배포 허용의 증거가 아닙니다.
+
+## 후속 검증
+
+1. 후보 코드의 정확한 버전 SHA, 라이선스, 의존성과 credential 처리 감사
+2. Provider별 공식 OAuth·구독 quota API·앱 배포 권한 확인
+3. Android 실기기 갱신 지연/배터리 측정
+4. Windows의 네 가지 독립 quota 화면에 대한 기능 일치성 평가
+
+---
+
 # AI Usage Mobile — 공개 유사 프로젝트 기술 조사
 
 - Date: 2026-10-15 (KST)
