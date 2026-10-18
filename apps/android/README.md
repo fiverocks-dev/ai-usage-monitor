@@ -11,14 +11,18 @@
 - 표시율 경계 검증 단위 테스트
 
 ## 빌드
-Android Studio에서 `apps/android/` 디렉터리를 프로젝트로 열어 JDK 17과 Android SDK 35로 Gradle 동기화 후 실행합니다. Gradle wrapper 실행 파일과 jar는 아직 포함하지 않았으므로, 신뢰 가능한 로컬 Gradle 설치 또는 Android Studio의 Gradle 구성으로 실행해야 합니다.
+Android Studio에서 `apps/android/` 디렉터리를 프로젝트로 열어 JDK 17과 Android SDK 35로 Gradle 동기화 후 실행합니다. Gradle wrapper 실행 파일과 jar는 아직 포함하지 않았습니다. 로컬 Gradle 8.9 또는 Android Studio의 동등한 Gradle 설정으로 실행합니다. GitHub Actions에서는 Gradle 8.9를 자동 설치합니다.
 
 ```bash
 cd apps/android
 gradle :app:assembleDebug :app:testDebugUnitTest
 ```
 
-**중요:** GitHub에 코드가 작성된 것과 Android SDK를 사용한 빌드 성공은 다릅니다. 실제 SDK/에뮬레이터 빌드 검증은 후속 작업입니다.
+## GitHub Actions 빌드
+
+PR의 **Checks → Android Mock CI**에서 APK 빌드와 JVM 단위 테스트 결과를 확인할 수 있습니다. **Actions → Android Mock CI → Run workflow**에서 수동 실행도 가능합니다. 이 워크플로는 일반 CI 검증이므로 APK 파일을 다운로드 아티팩트로 게시하지 않습니다. Android 에뮬레이터/실기기 위젯 테스트는 별도입니다.
+
+**중요:** 소스 작성만으로 빌드 통과를 주장하지 않으며, 해당 커밋의 Actions 결과를 확인해야 합니다.
 
 ## 보안 및 범위
 앱은 INTERNET 권한을 선언하지 않습니다. OAuth, 토큰, 쿠키, 비공식 API, 실제 백그라운드 polling, 백엔드, iOS 연동이 없습니다. 위젯은 Mock 저장 데이터만 읽습니다.
