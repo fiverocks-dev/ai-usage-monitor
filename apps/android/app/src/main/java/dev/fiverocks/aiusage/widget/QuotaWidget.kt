@@ -3,7 +3,6 @@ package dev.fiverocks.aiusage.widget
 import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.GlanceTheme
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.provideContent
@@ -11,13 +10,6 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.padding
 import androidx.glance.text.Text
-import androidx.glance.unit.ColorProvider
-import androidx.glance.text.TextStyle
-import androidx.glance.appwidget.updateAll
-import androidx.glance.color.ColorProviders
-import androidx.glance.material3.ColorProviders as MaterialColorProviders
-import androidx.glance.layout.Spacer
-import androidx.glance.layout.height
 import androidx.compose.ui.unit.dp
 import dev.fiverocks.aiusage.model.displayPercent
 import dev.fiverocks.aiusage.model.label
