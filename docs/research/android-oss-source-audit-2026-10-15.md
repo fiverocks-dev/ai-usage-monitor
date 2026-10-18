@@ -1,3 +1,28 @@
+# 한국어 요약 — Android 오픈소스 인증·갱신·위젯 코드 분석
+
+> 아래 영문 본문에는 조회한 개별 소스 파일과 구현상 근거가 보존되어 있습니다. 한국어를 기본으로 읽을 수 있도록 결정 사항을 먼저 정리했습니다.
+
+## 핵심 결론
+
+**구현 패턴은 참고하되 credential 코드를 그대로 복사하지 않습니다.** Android는 Kotlin/Compose + Glance를 사용하고, Provider 인증은 공식 허용 여부를 통과한 별도 어댑터에서만 수행합니다.
+
+| 분석 영역 | 소스에서 확인한 사례 | AI Usage 채택 판단 |
+|---|---|---|
+| 보안 저장 | 양쪽 모두 `EncryptedSharedPreferences` 사용 | Android Keystore 기반 최신 대안 평가, 위젯 캐시와 분리 |
+| Codex | OpenUsage의 Device Code + 고정 OAuth client ID | 등록·scope·API 사용 승인 확인 전 운영 연동 금지 |
+| Claude | OpenUsage는 `claude.ai` 세션 쿠키 사용 | 배포용 기본 로그인으로 채택하지 않음 |
+| WorkManager | OpenUsage의 일회성 작업 재등록 + 15분 fallback | 정확한 1·5분 polling 보장 불가, 15~30분 best-effort 우선 |
+| 동기화 | CodexBar의 Provider 병렬 조회 및 부분 성공 | 독립 성공·실패 관리, 실패한 값에 stale 표시 |
+| Token refresh | CodexBar가 서비스별 갱신 수행 | 영구 인증 오류와 일시 장애 분리, 과도한 재발급 방지 |
+| 429 재시도 | `Retry-After` 초/백오프 후 차단 대기 | HTTP-date 지원·취소 가능 대기·지터·횟수 제한으로 개선 |
+| 위젯 캐시 | 갱신 시각을 함께 저장 | 토큰 비포함, 데이터 없음과 0% 구분, Provider별 시각 유지 |
+
+## 필요한 테스트
+
+401/403/429/5xx, 잘못된 JSON, 부분 성공, 토큰 만료, Doze, 앱 강제 종료, 재부팅, 위젯만 남은 상태, 임계값 알림 중복, 개인정보 로그 노출을 재현 가능한 테스트로 확인합니다. 원문에 링크된 각 파일은 설계 참고 자료이지 그대로 가져올 코드 목록이 아닙니다.
+
+---
+
 # Android OSS Source Audit — OpenUsage vs CodexBar
 
 Date: 2026-10-15 KST  
