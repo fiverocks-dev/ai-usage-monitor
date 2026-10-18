@@ -586,6 +586,37 @@ fn service_tooltip(
     format!("{service}: {}", parts.join(" | "))
 }
 
+// Model-level fallback does not establish a 5-hour or weekly quota window.
+fn antigravity_gemini_tooltip(
+    session_text: &str,
+    weekly_text: &str,
+    show_session_window: bool,
+    show_weekly_window: bool,
+    usage: Option<&crate::models::UsageData>,
+) -> String {
+    let is_model_fallback = usage.is_some_and(|usage| {
+        usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0
+    });
+    if is_model_fallback {
+        let mut parts = Vec::new();
+        if show_session_window {
+            parts.push(format!("model quota {session_text} (window unverified)"));
+        }
+        if show_weekly_window {
+            parts.push("7d unavailable".to_string());
+        }
+        format!("AG-G: {}", parts.join(" | "))
+    } else {
+        service_tooltip(
+            "AG-G",
+            session_text,
+            weekly_text,
+            show_session_window,
+            show_weekly_window,
+        )
+    }
+}
+
 fn claude_code_menu_label(
     strings: Strings,
     language: LanguageId,
@@ -790,12 +821,12 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                 ));
             }
             if s.show_antigravity {
-                services.push(service_tooltip(
-                    "AG-G",
+                services.push(antigravity_gemini_tooltip(
                     &s.antigravity_gemini_session_text,
                     &s.antigravity_gemini_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.data.as_ref().and_then(|data| data.antigravity.as_ref()),
                 ));
                 services.push(service_tooltip(
                     "AG-C",
@@ -4298,6 +4329,25 @@ mod tests {
         assert_eq!(
             service_tooltip("Claude Code", "13%", "86%", false, true),
             "Claude Code: 7d 86%"
+        );
+    }
+
+    #[test]
+    fn gemini_model_fallback_tooltip_does_not_claim_five_hour_or_weekly_quota() {
+        let usage = crate::models::UsageData {
+            session: crate::models::UsageSection {
+                percentage: 25.0,
+                resets_at: None,
+            },
+            weekly: crate::models::UsageSection::default(),
+        };
+        assert_eq!(
+            antigravity_gemini_tooltip("75% left", "--", true, true, Some(&usage)),
+            "AG-G: model quota 75% left (window unverified) | 7d unavailable"
+        );
+        assert_eq!(
+            antigravity_gemini_tooltip("75% left", "40% left", true, true, None),
+            "AG-G: 5h 75% left | 7d 40% left"
         );
     }
 
