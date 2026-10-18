@@ -1,0 +1,30 @@
+package dev.fiverocks.aiusage.model
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class QuotaTest {
+    @Test fun fourProvidersRemainDistinct() {
+        assertEquals(4, ProviderId.entries.size)
+        assertEquals(6, MockQuota.snapshots(1000).size)
+    }
+    @Test fun absentIsDifferentFromExhausted() {
+        val values = MockQuota.snapshots(1000)
+        assertEquals("0%", values.first { it.provider == ProviderId.CODEX }.displayPercent())
+        assertEquals("—", values.first { it.provider == ProviderId.ANTIGRAVITY_CLAUDE }.displayPercent())
+    }
+    @Test fun invalidValuesAreRejected() {
+        listOf(-0.1, 1.2, Double.NaN, Double.POSITIVE_INFINITY).forEach { n ->
+            try {
+                QuotaSnapshot(ProviderId.CODEX, "5h", n, null, null, QuotaStatus.FRESH)
+                fail("expected invalid fraction rejection: $n")
+            } catch (_: IllegalArgumentException) { }
+        }
+    }
+    @Test fun zeroOneAndThresholdValues() {
+        listOf(0.0, 0.1, 1.0).forEach { n ->
+            val s = QuotaSnapshot(ProviderId.CODEX, "5h", n, null, null, QuotaStatus.FRESH)
+            assertEquals("${(n * 100).toInt()}%", s.displayPercent())
+        }
+    }
+}
