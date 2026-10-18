@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">AI Usage (Mock)</string>
+  <string name="mock_notice">샘플 데이터 · 실제 계정에 연결되지 않음</string>
+  <string name="refresh_mock">Mock 갱신</string>
+  <string name="last_updated">마지막 갱신</string>
+</resources>
