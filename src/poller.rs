@@ -899,7 +899,10 @@ fn fetch_antigravity_model_quotas(
     let mut gemini_sections = Vec::new();
     let mut claude_sections = Vec::new();
     if diagnose::is_enabled() {
-        diagnose::log(format!("Antigravity model quota response: model_count={}", response.models.len()));
+        diagnose::log(format!(
+            "Antigravity model quota response: model_count={}",
+            response.models.len()
+        ));
     }
     for (model, info) in response.models {
         if diagnose::is_enabled() {
@@ -971,7 +974,10 @@ fn fetch_antigravity_quota_summary(
 
     if diagnose::is_enabled() {
         let groups = response.groups.as_deref().unwrap_or_default();
-        diagnose::log(format!("Antigravity quota summary: group_count={}", groups.len()));
+        diagnose::log(format!(
+            "Antigravity quota summary: group_count={}",
+            groups.len()
+        ));
         for group in groups {
             diagnose::log(format!(
                 "Antigravity quota group: name={:?} description={:?} family={:?} bucket_count={}",
