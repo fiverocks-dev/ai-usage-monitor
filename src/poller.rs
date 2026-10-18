@@ -1032,6 +1032,9 @@ fn antigravity_usage_from_summary(
         match family {
             Some(AntigravityFamily::Gemini) if gemini.is_none() => gemini = usage,
             Some(AntigravityFamily::Claude) if claude.is_none() => claude = usage,
+            Some(AntigravityFamily::Argon) => {
+                diagnose::log("Antigravity separate Argon quota detected; excluded from Gemini and Claude totals");
+            }
             _ => {
                 diagnose::log("Antigravity quota summary group not mapped to an empty family slot")
             }
@@ -1070,11 +1073,22 @@ fn antigravity_usage_from_summary_group(group: AntigravityQuotaSummaryGroup) -> 
 enum AntigravityFamily {
     Gemini,
     Claude,
+    Argon,
 }
 
 fn antigravity_summary_group_family(
     group: &AntigravityQuotaSummaryGroup,
 ) -> Option<AntigravityFamily> {
+    // A dedicated Argon group can contain the word "Gemini". Its weekly quota
+    // must not be mistaken for the ordinary Gemini shared quota. Only classify
+    // by group identity, not an incidental mention in the description.
+    if group
+        .display_name
+        .as_deref()
+        .is_some_and(|name| name.to_ascii_lowercase().contains("argon"))
+    {
+        return Some(AntigravityFamily::Argon);
+    }
     let mut haystacks = Vec::new();
     if let Some(name) = group.display_name.as_deref() {
         haystacks.push(name.to_ascii_lowercase());
@@ -1833,6 +1847,34 @@ mod tests {
         let (gemini, claude) = antigravity_usage_from_summary(response).expect("partial result");
         assert!(gemini.is_none());
         assert!(claude.is_some());
+    }
+
+    #[test]
+    fn separate_argon_weekly_quota_is_not_gemini_weekly_quota() {
+        let response: AntigravityQuotaSummaryResponse = serde_json::from_str(
+            r#"{"groups":[
+                {"displayName":"Gemini 4 Argon",
+                 "buckets":[{"bucketId":"argon-weekly","window":"weekly","remainingFraction":0.97}]},
+                {"displayName":"Claude and GPT models",
+                 "buckets":[{"window":"weekly","remainingFraction":0.10}]}
+            ]}"#,
+        )
+        .expect("valid summary");
+        let (gemini, claude) = antigravity_usage_from_summary(response).expect("Claude present");
+        assert!(gemini.is_none(), "Argon must not fill the Gemini family");
+        assert!((claude.expect("Claude quota").weekly.percentage - 90.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn shared_gemini_group_with_argon_in_description_is_still_gemini() {
+        let response: AntigravityQuotaSummaryResponse = serde_json::from_str(
+            r#"{"groups":[{"displayName":"Gemini Models",
+                "description":"Argon quota included in this Gemini group for Ultra",
+                "buckets":[{"window":"weekly","remainingFraction":0.99}]}]}"#,
+        )
+        .expect("valid summary");
+        let (gemini, _) = antigravity_usage_from_summary(response).expect("Gemini present");
+        assert!((gemini.expect("Gemini quota").weekly.percentage - 1.0).abs() < 0.001);
     }
 
     #[test]
