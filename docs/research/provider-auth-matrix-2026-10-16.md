@@ -1,3 +1,31 @@
+# 한국어 요약 — Provider 인증 및 quota API 승인 현황
+
+> 조사 원문의 공식 출처·판정 조건을 유지합니다. **2026-10-16 조사 기준**이며 서비스 정책은 변경될 수 있습니다.
+
+## 핵심 결론
+
+모바일 앱에 로그인할 수 있다는 사실과 **기존 구독의 잔여 quota를 읽을 수 있는 권한**은 서로 다릅니다. 네 가지 표시 대상 모두 제3자 모바일 quota 조회 및 앱스토어 배포가 공식적으로 허용되었다는 증거는 아직 확보되지 않았습니다. **미확인 ≠ 금지 확정**입니다.
+
+| 표시 대상 | 확인된 기술적 경로 | 운영·배포용 승인 |
+|---|---|---|
+| Claude Code | Windows CLI 토큰 + `/api/oauth/usage` | 미확인 / 기능 게이트 유지 |
+| Codex | CLI 토큰 + `wham/usage`, 공식 Sign in with ChatGPT는 별개 | quota 조회 승인 미확인 |
+| Antigravity Gemini | Windows Credential Manager + Cloud Code 계열 | 모바일 구독 quota 접근 미확인 |
+| Antigravity Claude | Antigravity 동일 인증 기반 별도 모델 버킷 | 모바일 구독 quota 접근 미확인 |
+
+## 제품 승인 게이트
+
+1. **P0 서비스 권한:** 공식 약관 또는 서면 승인으로 제3자 quota 조회 가능성 확인
+2. **P1 인증:** 해당 앱이 사용할 수 있는 OAuth 클라이언트·scope·PKCE/Device Flow 확인
+3. **P2 API:** quota 응답 필드, 갱신 주기, Rate Limit, reset 시간 의미 확인
+4. **P3 보안:** 토큰 저장·폐기·로그 비노출·백업 제외 검증
+5. **P4 배포:** Apple/Google 스토어 및 개인정보 처리 기준 충족
+6. **P5 신뢰성:** 오류·오프라인·만료 상태 및 실기기 갱신 테스트 통과
+
+**미승인 Provider의 실제 인증 UI·API 호출은 구현/배포하지 않고 Mock 상태로 유지합니다.** 공식적으로 허용된 인증 수단을 찾더라도 quota endpoint의 별도 허용 근거가 필요합니다.
+
+---
+
 # Provider Authentication & Quota API Capability Matrix
 
 Date: 2026-10-16 (KST)
