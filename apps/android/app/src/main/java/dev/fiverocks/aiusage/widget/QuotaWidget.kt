@@ -11,9 +11,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.padding
 import androidx.glance.text.Text
 import androidx.compose.ui.unit.dp
-import dev.fiverocks.aiusage.model.displayPercent
-import dev.fiverocks.aiusage.model.displayStatus
-import dev.fiverocks.aiusage.model.label
+import dev.fiverocks.aiusage.model.widgetText
 
 class QuotaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -25,10 +23,8 @@ class QuotaWidget : GlanceAppWidget() {
                 Text("AI Usage · Mock #$revision")
                 if (snapshots.isEmpty()) Text("데이터 없음")
                 else snapshots.groupBy { it.provider }.forEach { (provider, windows) ->
-                    val summary = windows.joinToString("  ") { "${it.windowId}: ${it.displayPercent()}" }
+                    val summary = windows.joinToString("  ") { it.widgetText(now) }
                     Text("${provider.title}  $summary")
-                    if (windows.any { it.displayStatus(now) != dev.fiverocks.aiusage.model.QuotaStatus.FRESH })
-                        Text(windows.first { it.displayStatus(now) != dev.fiverocks.aiusage.model.QuotaStatus.FRESH }.displayStatus(now).label())
                 }
                 Text("예시 데이터 · 실제 사용량 아님")
             }
