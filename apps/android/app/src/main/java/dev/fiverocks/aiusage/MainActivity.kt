@@ -15,6 +15,7 @@ import dev.fiverocks.aiusage.model.*
 import dev.fiverocks.aiusage.widget.QuotaWidget
 import dev.fiverocks.aiusage.widget.WidgetCache
 import kotlinx.coroutines.launch
+import android.util.Log
 import java.text.DateFormat
 import java.util.Date
 
@@ -25,12 +26,26 @@ class MainActivity : ComponentActivity() {
             var sequence by remember { mutableIntStateOf(WidgetCache.revision(this@MainActivity)) }
             var snapshots by remember { mutableStateOf(WidgetCache.load(this@MainActivity)) }
             val scope = rememberCoroutineScope()
+            var widgetSyncStatus by remember { mutableStateOf("위젯 갱신 대기") }
 
             fun refresh() {
                 sequence++
                 snapshots = MockQuota.snapshots(System.currentTimeMillis() / 1000, sequence)
-                WidgetCache.save(this@MainActivity, snapshots, sequence)
-                scope.launch { QuotaWidget().updateAll(this@MainActivity) }
+                val persisted = WidgetCache.save(this@MainActivity, snapshots, sequence)
+                if (!persisted) {
+                    widgetSyncStatus = "위젯 데이터 저장 실패"
+                    return
+                }
+                widgetSyncStatus = "위젯 갱신 요청 중…"
+                scope.launch {
+                    try {
+                        QuotaWidget().updateAll(this@MainActivity)
+                        widgetSyncStatus = "위젯 갱신 요청 완료 · Mock #$sequence"
+                    } catch (error: Exception) {
+                        Log.e("AIUsageWidget", "Widget refresh failed", error)
+                        widgetSyncStatus = "위젯 갱신 실패 · 앱을 다시 열어 확인"
+                    }
+                }
             }
 
             LaunchedEffect(Unit) {
@@ -44,6 +59,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(Modifier.height(12.dp))
                         Button(onClick = { refresh() }) { Text("Mock 갱신") }
                         Text("Mock 갱신 횟수 #$sequence · 누를 때마다 잔여량 변경", style = MaterialTheme.typography.bodySmall)
+                        Text(widgetSyncStatus, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(16.dp))
                         ProviderId.entries.forEach { provider ->
                             ElevatedCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
