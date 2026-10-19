@@ -14,7 +14,7 @@ object WidgetCache {
     fun revision(context: Context): Int =
         context.getSharedPreferences(STORE, Context.MODE_PRIVATE).getInt(REVISION, 0)
 
-    fun save(context: Context, values: List<QuotaSnapshot>, revision: Int) {
+    fun save(context: Context, values: List<QuotaSnapshot>, revision: Int): Boolean {
         val json = JSONArray()
         values.forEach { s ->
             json.put(JSONObject().apply {
@@ -29,7 +29,7 @@ object WidgetCache {
         context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
             .putString(KEY, json.toString())
             .putInt(REVISION, revision)
-            .apply()
+            .commit()
     }
 
     fun load(context: Context): List<QuotaSnapshot> = runCatching {
