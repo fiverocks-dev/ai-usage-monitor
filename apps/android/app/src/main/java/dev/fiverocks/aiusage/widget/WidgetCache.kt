@@ -26,7 +26,7 @@ object WidgetCache {
                 put("status", s.status.name)
             })
         }
-        context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
+        return context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
             .putString(KEY, json.toString())
             .putInt(REVISION, revision)
             .commit()
