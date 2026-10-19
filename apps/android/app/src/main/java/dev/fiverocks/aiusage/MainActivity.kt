@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
                                     val windows = snapshots.filter { it.provider == provider }
                                     if (windows.isEmpty()) Text("데이터 없음")
                                     windows.forEach { q ->
-                                        Text("${q.windowId} · 남은 사용량 ${q.displayPercent()} · ${q.status.label()}", modifier = Modifier.semantics { contentDescription = "${provider.title}, ${q.windowId}, 남은 사용량 ${q.displayPercent()}, 상태 ${q.status.label()}" })
+                                        Text("${q.windowId} · 남은 사용량 ${q.displayPercent()} · ${q.displayStatus(System.currentTimeMillis() / 1000).label()}", modifier = Modifier.semantics { contentDescription = "${provider.title}, ${q.windowId}, 남은 사용량 ${q.displayPercent()}, 상태 ${q.displayStatus(System.currentTimeMillis() / 1000).label()}" })
                                         q.resetAtEpochSeconds?.let { Text("초기화: ${date(it)}") }
                                         q.fetchedAtEpochSeconds?.let { Text("마지막 갱신: ${date(it)}") }
                                     }
