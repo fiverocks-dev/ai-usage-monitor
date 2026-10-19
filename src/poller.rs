@@ -995,6 +995,12 @@ fn fetch_antigravity_quota_summary(
                     bucket.remaining_fraction.is_some(),
                     bucket.reset_time.is_some()
                 ));
+                diagnose::log(format!(
+                    "Antigravity quota bucket remaining: id={:?} window={:?} remaining_pct={:?}",
+                    bucket.bucket_id,
+                    bucket.window,
+                    bucket.remaining_fraction.map(|fraction| fraction.clamp(0.0, 1.0) * 100.0)
+                ));
             }
         }
     }
@@ -1041,6 +1047,15 @@ fn antigravity_usage_from_summary(
         }
     }
 
+    if diagnose::is_enabled() {
+        if let Some(usage) = claude.as_ref() {
+            diagnose::log(format!(
+                "Antigravity selected Claude remaining: weekly_pct={:.2} five_hour_pct={:.2}",
+                remaining_percentage(usage.weekly.percentage),
+                remaining_percentage(usage.session.percentage)
+            ));
+        }
+    }
     (gemini.is_some() || claude.is_some()).then_some((gemini, claude))
 }
 
