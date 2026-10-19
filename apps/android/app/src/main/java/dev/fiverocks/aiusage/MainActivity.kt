@@ -9,6 +9,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.glance.appwidget.updateAll
 import dev.fiverocks.aiusage.model.*
@@ -30,8 +32,9 @@ class MainActivity : ComponentActivity() {
 
             fun refresh() {
                 sequence++
-                snapshots = MockQuota.snapshots(System.currentTimeMillis() / 1000, sequence)
-                val persisted = WidgetCache.save(this@MainActivity, snapshots, sequence)
+                val requestedRevision = sequence
+                snapshots = MockQuota.snapshots(System.currentTimeMillis() / 1000, requestedRevision)
+                val persisted = WidgetCache.save(this@MainActivity, snapshots, requestedRevision)
                 if (!persisted) {
                     widgetSyncStatus = "위젯 데이터 저장 실패"
                     return
@@ -40,7 +43,7 @@ class MainActivity : ComponentActivity() {
                 scope.launch {
                     try {
                         QuotaWidget().updateAll(this@MainActivity)
-                        widgetSyncStatus = "위젯 갱신 요청 완료 · Mock #$sequence"
+                        widgetSyncStatus = "위젯 갱신 요청 완료 · Mock #$requestedRevision"
                     } catch (error: Exception) {
                         Log.e("AIUsageWidget", "Widget refresh failed", error)
                         widgetSyncStatus = "위젯 갱신 실패 · 앱을 다시 열어 확인"
@@ -68,7 +71,7 @@ class MainActivity : ComponentActivity() {
                                     val windows = snapshots.filter { it.provider == provider }
                                     if (windows.isEmpty()) Text("데이터 없음")
                                     windows.forEach { q ->
-                                        Text("${q.windowId} · 남은 사용량 ${q.displayPercent()} · ${q.status.label()}")
+                                        Text("${q.windowId} · 남은 사용량 ${q.displayPercent()} · ${q.status.label()}", modifier = Modifier.semantics { contentDescription = "${provider.title}, ${q.windowId}, 남은 사용량 ${q.displayPercent()}, 상태 ${q.status.label()}" })
                                         q.resetAtEpochSeconds?.let { Text("초기화: ${date(it)}") }
                                         q.fetchedAtEpochSeconds?.let { Text("마지막 갱신: ${date(it)}") }
                                     }
