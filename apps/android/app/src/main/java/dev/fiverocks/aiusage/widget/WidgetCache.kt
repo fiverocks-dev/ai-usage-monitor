@@ -9,8 +9,12 @@ import org.json.JSONObject
 object WidgetCache {
     private const val STORE = "mock_widget_snapshots"
     private const val KEY = "snapshots"
+    private const val REVISION = "mock_revision"
 
-    fun save(context: Context, values: List<QuotaSnapshot>) {
+    fun revision(context: Context): Int =
+        context.getSharedPreferences(STORE, Context.MODE_PRIVATE).getInt(REVISION, 0)
+
+    fun save(context: Context, values: List<QuotaSnapshot>, revision: Int) {
         val json = JSONArray()
         values.forEach { s ->
             json.put(JSONObject().apply {
@@ -22,7 +26,10 @@ object WidgetCache {
                 put("status", s.status.name)
             })
         }
-        context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit().putString(KEY, json.toString()).apply()
+        context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
+            .putString(KEY, json.toString())
+            .putInt(REVISION, revision)
+            .apply()
     }
 
     fun load(context: Context): List<QuotaSnapshot> = runCatching {
