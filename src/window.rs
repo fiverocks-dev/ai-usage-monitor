@@ -577,11 +577,11 @@ fn service_tooltip(
     show_weekly_window: bool,
 ) -> String {
     let mut parts = Vec::new();
-    if show_session_window {
-        parts.push(format!("5h {session_text}"));
-    }
     if show_weekly_window {
         parts.push(format!("7d {weekly_text}"));
+    }
+    if show_session_window {
+        parts.push(format!("5h {session_text}"));
     }
     format!("{service}: {}", parts.join(" | "))
 }
@@ -598,11 +598,11 @@ fn antigravity_gemini_tooltip(
         .is_some_and(|usage| usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0);
     if is_model_fallback {
         let mut parts = Vec::new();
-        if show_session_window {
-            parts.push(format!("model quota {session_text} (window unverified)"));
-        }
         if show_weekly_window {
             parts.push("7d unavailable".to_string());
+        }
+        if show_session_window {
+            parts.push(format!("model quota {session_text} (window unverified)"));
         }
         format!("AG-G: {}", parts.join(" | "))
     } else {
@@ -2334,7 +2334,7 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_weekly_window {
-                    row1_y
+                    row2_y
                 } else {
                     single_row_y
                 },
@@ -2366,7 +2366,7 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_session_window {
-                    row2_y
+                    row1_y
                 } else {
                     single_row_y
                 },
@@ -4323,7 +4323,7 @@ mod tests {
                 true,
                 true
             ),
-            "Codex: 5h 剩余13% 19:04重置 | 7d 剩余86% 07/18重置"
+            "Codex: 7d 剩余86% 07/18重置 | 5h 剩余13% 19:04重置"
         );
         assert_eq!(
             service_tooltip("Claude Code", "13%", "86%", false, true),
@@ -4342,11 +4342,11 @@ mod tests {
         };
         assert_eq!(
             antigravity_gemini_tooltip("75% left", "--", true, true, Some(&usage)),
-            "AG-G: model quota 75% left (window unverified) | 7d unavailable"
+            "AG-G: 7d unavailable | model quota 75% left (window unverified)"
         );
         assert_eq!(
             antigravity_gemini_tooltip("75% left", "40% left", true, true, None),
-            "AG-G: 5h 75% left | 7d 40% left"
+            "AG-G: 7d 40% left | 5h 75% left"
         );
     }
 
