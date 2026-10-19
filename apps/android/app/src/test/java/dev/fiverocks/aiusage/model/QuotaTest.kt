@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class QuotaTest {
+    @Test fun expiredFreshDataIsMarkedStale() {
+        val sample = QuotaSnapshot(ProviderId.CODEX, "5h", 0.5, null, 1000L, QuotaStatus.FRESH)
+        assertEquals(QuotaStatus.FRESH, sample.displayStatus(1900L))
+        assertEquals(QuotaStatus.STALE, sample.displayStatus(1901L))
+    }
+    @Test fun explicitFailureSurvivesExpiration() {
+        val sample = QuotaSnapshot(ProviderId.CODEX, "5h", 0.5, null, 1000L, QuotaStatus.OFFLINE)
+        assertEquals(QuotaStatus.OFFLINE, sample.displayStatus(100000L))
+    }
+    @Test fun missingFetchTimeIsNotFresh() {
+        val sample = QuotaSnapshot(ProviderId.CODEX, "5h", null, null, null, QuotaStatus.FRESH)
+        assertEquals(QuotaStatus.INVALID_RESPONSE, sample.displayStatus(1000L))
+    }
     @Test fun fourProvidersRemainDistinct() {
         assertEquals(4, ProviderId.entries.size)
         assertEquals(6, MockQuota.snapshots(1000).size)
