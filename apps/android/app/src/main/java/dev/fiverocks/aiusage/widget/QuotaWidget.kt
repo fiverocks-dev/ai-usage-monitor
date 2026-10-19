@@ -12,12 +12,14 @@ import androidx.glance.layout.padding
 import androidx.glance.text.Text
 import androidx.compose.ui.unit.dp
 import dev.fiverocks.aiusage.model.displayPercent
+import dev.fiverocks.aiusage.model.displayStatus
 import dev.fiverocks.aiusage.model.label
 
 class QuotaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val snapshots = WidgetCache.load(context)
         val revision = WidgetCache.revision(context)
+        val now = System.currentTimeMillis() / 1000
         provideContent {
             Column(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) {
                 Text("AI Usage · Mock #$revision")
@@ -25,8 +27,8 @@ class QuotaWidget : GlanceAppWidget() {
                 else snapshots.groupBy { it.provider }.forEach { (provider, windows) ->
                     val summary = windows.joinToString("  ") { "${it.windowId}: ${it.displayPercent()}" }
                     Text("${provider.title}  $summary")
-                    if (windows.any { it.status != dev.fiverocks.aiusage.model.QuotaStatus.FRESH })
-                        Text(windows.first { it.status != dev.fiverocks.aiusage.model.QuotaStatus.FRESH }.status.label())
+                    if (windows.any { it.displayStatus(now) != dev.fiverocks.aiusage.model.QuotaStatus.FRESH })
+                        Text(windows.first { it.status != dev.fiverocks.aiusage.model.QuotaStatus.FRESH }.displayStatus(now).label())
                 }
                 Text("예시 데이터 · 실제 사용량 아님")
             }
