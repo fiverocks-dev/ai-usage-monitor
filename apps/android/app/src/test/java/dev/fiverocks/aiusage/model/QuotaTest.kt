@@ -21,6 +21,14 @@ class QuotaTest {
             } catch (_: IllegalArgumentException) { }
         }
     }
+    @Test fun everyRefreshChangesDisplayedQuota() {
+        val states = (0..4).map { index -> MockQuota.snapshots(1000, index) }
+        for (index in 1..4) {
+            val before = states[index - 1].first { it.provider == ProviderId.CLAUDE_CODE }.remainingPercent
+            val after = states[index].first { it.provider == ProviderId.CLAUDE_CODE }.remainingPercent
+            assertNotEquals(before, after)
+        }
+    }
     @Test fun zeroOneAndThresholdValues() {
         listOf(0.0, 0.1, 1.0).forEach { n ->
             val s = QuotaSnapshot(ProviderId.CODEX, "5h", n, null, null, QuotaStatus.FRESH)
