@@ -62,3 +62,7 @@ fun QuotaSnapshot.displayStatus(nowEpochSeconds: Long, staleAfterSeconds: Long =
     val elapsed = nowEpochSeconds - fetchedAtEpochSeconds
     return if (elapsed > staleAfterSeconds) QuotaStatus.STALE else QuotaStatus.FRESH
 }
+
+/** Snapshot-only display summary. Status is evaluated at render time, not stored as an overwritten value. */
+fun QuotaSnapshot.widgetText(nowEpochSeconds: Long): String =
+    "${windowId}: ${displayPercent()} (${displayStatus(nowEpochSeconds).label()})"
