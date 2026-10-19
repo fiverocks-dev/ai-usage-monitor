@@ -17,9 +17,10 @@ import dev.fiverocks.aiusage.model.label
 class QuotaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val snapshots = WidgetCache.load(context)
+        val revision = WidgetCache.revision(context)
         provideContent {
             Column(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) {
-                Text("AI Usage · Mock")
+                Text("AI Usage · Mock #$revision")
                 if (snapshots.isEmpty()) Text("데이터 없음")
                 else snapshots.groupBy { it.provider }.forEach { (provider, windows) ->
                     val summary = windows.joinToString("  ") { "${it.windowId}: ${it.displayPercent()}" }
