@@ -20,7 +20,7 @@ gradle :app:assembleDebug :app:testDebugUnitTest
 
 ## GitHub Actions 빌드
 
-PR의 **Checks → Android Mock CI**에서 APK 빌드와 JVM 단위 테스트 결과를 확인할 수 있습니다. **Actions → Android Mock CI → Run workflow**에서 수동 실행도 가능합니다. 이 워크플로는 일반 CI 검증이므로 APK 파일을 다운로드 아티팩트로 게시하지 않습니다. Android 에뮬레이터/실기기 위젯 테스트는 별도입니다.
+PR의 **Checks → Android Mock CI**에서 APK 빌드와 JVM 단위 테스트 결과를 확인할 수 있습니다. **Actions → Android Mock CI → Run workflow**에서 수동 실행도 가능합니다. 워크플로는 빌드와 단위 테스트에 성공한 경우에만 **3일 보관되는 QA 전용 APK 아티팩트**를 업로드합니다. 실행 화면의 **Artifacts**에서 `ai-usage-android-mock-<전체 커밋 SHA>` ZIP을 받아 `ai-usage-android-mock.apk`를 설치합니다. ZIP에는 `source-repository.txt`, `source-commit.txt`, `SHA256SUMS`가 동봉됩니다. 이는 디버그 서명 Mock 앱으로, 정식 릴리스나 Play 배포가 아닙니다. Android 에뮬레이터 자동 UI 테스트는 아직 없습니다.
 
 **중요:** 소스 작성만으로 빌드 통과를 주장하지 않으며, 해당 커밋의 Actions 결과를 확인해야 합니다.
 
@@ -29,3 +29,16 @@ PR의 **Checks → Android Mock CI**에서 APK 빌드와 JVM 단위 테스트 �
 
 - 추적: [Issue #13](https://github.com/fiverocks-dev/ai-usage-monitor/issues/13)
 - 설계: [PR #12](https://github.com/fiverocks-dev/ai-usage-monitor/pull/12)
+
+## QA 기록 (2026-10-19)
+
+- 검증 커밋: `ef481cfbf7dbd91dd3dfa938f6e2c4afd162d35e`.
+- [Android Mock CI #39236293679](https://github.com/fiverocks-dev/ai-usage-monitor/actions/runs/39236293679): **success** — Android Debug APK 빌드 및 JVM 테스트.
+- [Windows CI #39236293677](https://github.com/fiverocks-dev/ai-usage-monitor/actions/runs/39236293677): **success** — 기존 Windows 회귀 검사.
+- 실기기 사용자 확인: 앱 설치, 홈 화면 위젯 추가, 앱에서 Mock 갱신, **짧은 지연 후 위젯 값 갱신**.
+- 미확인: 지연 시간의 수치 측정, 여러 런처/Android 버전, 프로세스 종료·재부팅 후 복구, 장시간 안정성.
+- 갱신은 `SharedPreferences.commit()` 성공 확인 후 `GlanceAppWidget.updateAll()`을 요청하며 앱 화면에 갱신 요청 결과를 표시합니다. 앱의 요청 완료 메시지는 실제 런처 렌더 완료를 보증하지 않습니다.
+
+## 다음 단계
+
+Android 앱과 위젯의 스냅샷 일치성·갱신 상태 진단을 강화한 뒤 실기기 회귀 테스트를 반복합니다. 실제 Provider API 및 인증정보 연동은 승인 근거가 확인되기 전까지 구현하지 않습니다.
