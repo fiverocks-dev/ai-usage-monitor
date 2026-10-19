@@ -51,3 +51,14 @@ fun QuotaStatus.label(): String = when (this) {
 }
 
 fun QuotaSnapshot.displayPercent(): String = remainingPercent?.let { "$it%" } ?: "—"
+
+/**
+ * 표시용 유효 상태. 데이터가 없는 경우 fresh로 오인하지 않으며,
+ * 명시적 장애·인증·미지원 상태를 시간 경과만으로 덮어쓰지 않는다.
+ */
+fun QuotaSnapshot.displayStatus(nowEpochSeconds: Long, staleAfterSeconds: Long = 15 * 60): QuotaStatus {
+    if (status != QuotaStatus.FRESH) return status
+    if (fetchedAtEpochSeconds == null) return QuotaStatus.INVALID_RESPONSE
+    val elapsed = nowEpochSeconds - fetchedAtEpochSeconds
+    return if (elapsed > staleAfterSeconds) QuotaStatus.STALE else QuotaStatus.FRESH
+}
