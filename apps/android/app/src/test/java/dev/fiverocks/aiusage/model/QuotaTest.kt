@@ -17,6 +17,15 @@ class QuotaTest {
         val sample = QuotaSnapshot(ProviderId.CODEX, "5h", null, null, null, QuotaStatus.FRESH)
         assertEquals(QuotaStatus.INVALID_RESPONSE, sample.displayStatus(1000L))
     }
+    @Test fun widgetShowsStatusForEachWindow() {
+        val now = 2000L
+        val exhausted = QuotaSnapshot(ProviderId.CODEX, "5h", 0.0, null, now, QuotaStatus.FRESH)
+        val unsupported = QuotaSnapshot(ProviderId.ANTIGRAVITY_CLAUDE, "model", null, null, null, QuotaStatus.UNSUPPORTED)
+        val stale = QuotaSnapshot(ProviderId.CLAUDE_CODE, "7d", 0.45, null, 1000L, QuotaStatus.FRESH)
+        assertEquals("5h: 0% (정상)", exhausted.widgetText(now))
+        assertEquals("model: — (미지원)", unsupported.widgetText(now))
+        assertEquals("7d: 45% (오래된 데이터)", stale.widgetText(now))
+    }
     @Test fun fourProvidersRemainDistinct() {
         assertEquals(4, ProviderId.entries.size)
         assertEquals(6, MockQuota.snapshots(1000).size)
