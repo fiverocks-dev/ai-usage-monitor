@@ -28,7 +28,7 @@ class QuotaWidget : GlanceAppWidget() {
                     val summary = windows.joinToString("  ") { "${it.windowId}: ${it.displayPercent()}" }
                     Text("${provider.title}  $summary")
                     if (windows.any { it.displayStatus(now) != dev.fiverocks.aiusage.model.QuotaStatus.FRESH })
-                        Text(windows.first { it.status != dev.fiverocks.aiusage.model.QuotaStatus.FRESH }.displayStatus(now).label())
+                        Text(windows.first { it.displayStatus(now) != dev.fiverocks.aiusage.model.QuotaStatus.FRESH }.displayStatus(now).label())
                 }
                 Text("예시 데이터 · 실제 사용량 아님")
             }
