@@ -17,16 +17,17 @@ class QuotaWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val snapshots = WidgetCache.load(context)
         val revision = WidgetCache.revision(context)
+        val source = WidgetCache.source(context)
         val now = System.currentTimeMillis() / 1000
         provideContent {
             Column(modifier = GlanceModifier.fillMaxSize().padding(12.dp)) {
-                Text("AI Usage · Mock #$revision")
+                Text("AI Usage · $source #$revision")
                 if (snapshots.isEmpty()) Text("데이터 없음")
                 else snapshots.groupBy { it.provider }.forEach { (provider, windows) ->
                     val summary = windows.joinToString("  ") { it.widgetText(now) }
                     Text("${provider.title}  $summary")
                 }
-                Text("예시 데이터 · 실제 사용량 아님")
+                Text(if (source == "LOCAL_JSON") "로컬 JSON · 외부 API 미연결" else "예시 데이터 · 실제 사용량 아님")
             }
         }
     }
