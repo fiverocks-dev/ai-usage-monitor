@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
             var snapshots by remember { mutableStateOf(WidgetCache.load(this@MainActivity)) }
             val scope = rememberCoroutineScope()
             var widgetSyncStatus by remember { mutableStateOf("위젯 갱신 대기") }
-            var dataSource by remember { mutableStateOf("MOCK") }
+            var dataSource by remember { mutableStateOf(WidgetCache.source(this@MainActivity)) }
             val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                 if (uri != null) {
                     try {
@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                         } ?: error("파일 읽기 실패")
                         val imported = SnapshotImport.parse(raw)
                         val revision = sequence + 1
-                        if (WidgetCache.save(this@MainActivity, imported, revision)) {
+                        if (WidgetCache.save(this@MainActivity, imported, revision, "LOCAL_JSON")) {
                             sequence = revision
                             snapshots = imported
                             dataSource = "LOCAL_JSON"
