@@ -1,6 +1,8 @@
 package dev.fiverocks.aiusage
 
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
@@ -29,11 +31,44 @@ class MainActivity : ComponentActivity() {
             var snapshots by remember { mutableStateOf(WidgetCache.load(this@MainActivity)) }
             val scope = rememberCoroutineScope()
             var widgetSyncStatus by remember { mutableStateOf("위젯 갱신 대기") }
+            var dataSource by remember { mutableStateOf("MOCK") }
+            val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+                if (uri != null) {
+                    try {
+                        val raw = contentResolver.openInputStream(uri)?.use { input ->
+                            val bytes = input.readNBytes(65537)
+                            require(bytes.size <= 65536) { "파일 크기 제한 초과" }
+                            String(bytes, Charsets.UTF_8)
+                        } ?: error("파일 읽기 실패")
+                        val imported = SnapshotImport.parse(raw)
+                        val revision = sequence + 1
+                        if (WidgetCache.save(this@MainActivity, imported, revision)) {
+                            sequence = revision
+                            snapshots = imported
+                            dataSource = "LOCAL_JSON"
+                            widgetSyncStatus = "파일 적용 완료 · 위젯 갱신 중"
+                            scope.launch {
+                                try {
+                                    QuotaWidget().updateAll(this@MainActivity)
+                                    widgetSyncStatus = "파일 적용 완료 · 위젯 요청 완료"
+                                } catch (error: Exception) {
+                                    Log.e("AIUsageWidget", "Widget refresh failed", error)
+                                    widgetSyncStatus = "파일 적용 완료 · 위젯 갱신 실패"
+                                }
+                            }
+                        } else widgetSyncStatus = "저장 실패"
+                    } catch (error: Exception) {
+                        Log.w("AIUsageImport", "Rejected JSON file: " + error.javaClass.simpleName)
+                        widgetSyncStatus = "가져오기 실패 · JSON 형식 확인"
+                    }
+                }
+            }
 
             fun refresh() {
                 sequence++
                 val requestedRevision = sequence
                 snapshots = MockQuota.snapshots(System.currentTimeMillis() / 1000, requestedRevision)
+                dataSource = "MOCK"
                 val persisted = WidgetCache.save(this@MainActivity, snapshots, requestedRevision)
                 if (!persisted) {
                     widgetSyncStatus = "위젯 데이터 저장 실패"
@@ -58,9 +93,13 @@ class MainActivity : ComponentActivity() {
                 Scaffold { padding ->
                     Column(Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
                         Text("AI Usage", style = MaterialTheme.typography.headlineLarge)
-                        Text("샘플 데이터 · 실제 계정에 연결되지 않음", color = MaterialTheme.colorScheme.error)
+                        Text("로컬 데이터 · 실제 계정에 연결되지 않음", color = MaterialTheme.colorScheme.error)
+                        Text("데이터 출처: $dataSource")
                         Spacer(Modifier.height(12.dp))
-                        Button(onClick = { refresh() }) { Text("Mock 갱신") }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { refresh() }) { Text("Mock 갱신") }
+                            OutlinedButton(onClick = { filePicker.launch(arrayOf("application/json", "text/plain")) }) { Text("JSON 가져오기") }
+                        }
                         Text("Mock 갱신 횟수 #$sequence · 누를 때마다 잔여량 변경", style = MaterialTheme.typography.bodySmall)
                         Text(widgetSyncStatus, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(16.dp))
