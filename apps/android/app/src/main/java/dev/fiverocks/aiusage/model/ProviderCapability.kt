@@ -11,6 +11,7 @@ data class ProviderCapability(
     val evidenceUrl: String?,
     val checkedAt: String
 ) {
+    /** This is a policy gate, not proof that a working adapter exists. */
     val liveQuotaEnabled: Boolean
         get() = authApproval == ApprovalState.ALLOWED &&
             quotaReadApproval == ApprovalState.ALLOWED &&
@@ -34,4 +35,15 @@ object ProviderCapabilities {
             checkedAt = "2026-10-20"
         )
     }
+}
+
+/**
+ * Read-only Android integration eligibility. UNKNOWN must not degrade into a
+ * live-looking percentage; the UI must offer an explicit source label instead.
+ */
+fun ProviderCapability.connectionLabel(): String = when {
+    quotaReadApproval == ApprovalState.BLOCKED || authApproval == ApprovalState.BLOCKED ||
+        distributionApproval == ApprovalState.BLOCKED -> "직접 조회 불가"
+    !liveQuotaEnabled -> "직접 조회 미연결 · 공식 권한 미확인"
+    else -> "연동 가능성 확인 · 실제 어댑터 미구현"
 }
