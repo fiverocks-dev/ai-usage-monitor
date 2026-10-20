@@ -65,3 +65,10 @@ Android 앱과 위젯의 스냅샷 일치성·갱신 상태 진단을 강화한 
 - 이 표현은 `widgetText()` 순수 함수에서 만들고 경계값 단위 테스트를 실행합니다.
 - **재부팅·런처 재생성·15분 시점의 자동 리렌더링은 아직 실기기 검증 또는 구현 완료로 간주하지 않습니다.** 위젯은 Glance의 시스템 갱신 요청과 앱 갱신 시 표시를 다시 계산합니다.
 - 사용자 실기기 QA에선 앱 갱신과 위젯 반영 사이 짧은 시간차가 관찰되었습니다. 정량적 지연 보장 및 주기적 자동 갱신 기능은 아직 없습니다.
+
+## Provider 권한 게이트 (2026-10-20)
+
+- `ProviderCapability`에 **인증 허용**, **quota 조회 허용**, **배포 허용**의 독립 판정을 추가했습니다.
+- 네 Provider 모두 현재 `UNKNOWN`이며, 단일 로그인 가능성만으로 실제 quota 어댑터를 활성화할 수 없습니다.
+- 코드에는 실제 인증/HTTP 연결을 추가하지 않았습니다. JUnit 테스트로 게이트 조건을 확인합니다.
+- 상세 근거와 구현 단계: [Provider 연동 계획 v1](https://github.com/fiverocks-dev/ai-usage-monitor/blob/docs/mobile-oss-research-20261015/docs/architecture/provider-integration-plan-v1.md), [Issue #15](https://github.com/fiverocks-dev/ai-usage-monitor/issues/15).
