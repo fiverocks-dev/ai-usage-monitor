@@ -72,3 +72,17 @@ Android 앱과 위젯의 스냅샷 일치성·갱신 상태 진단을 강화한 
 - 네 Provider 모두 현재 `UNKNOWN`이며, 단일 로그인 가능성만으로 실제 quota 어댑터를 활성화할 수 없습니다.
 - 코드에는 실제 인증/HTTP 연결을 추가하지 않았습니다. JUnit 테스트로 게이트 조건을 확인합니다.
 - 상세 근거와 구현 단계: [Provider 연동 계획 v1](https://github.com/fiverocks-dev/ai-usage-monitor/blob/docs/mobile-oss-research-20261015/docs/architecture/provider-integration-plan-v1.md), [Issue #15](https://github.com/fiverocks-dev/ai-usage-monitor/issues/15).
+
+## 로컬 JSON 가져오기 (2026-10-20)
+
+1. [예시 JSON](./sample-quota.json)을 Android 휴대폰에 저장합니다.
+2. 앱에서 **JSON 가져오기**를 누르고 해당 파일을 선택합니다.
+3. 앱의 `데이터 출처: LOCAL_JSON`과 위젯 상단 `LOCAL_JSON` 표시를 확인합니다.
+4. 새로 `Mock 갱신`을 누르면 예시 데이터로 전환됩니다.
+
+- 로컬 파일 선택기(`ACTION_OPEN_DOCUMENT`)만 사용하며, 네트워크·OAuth·인증정보 수집은 없습니다.
+- 사용자 선택 파일이므로 **값의 진위·제공자 승인 여부가 검증되었다는 의미가 아닙니다**. 가져온 값도 실시간 연동으로 표시하지 않습니다.
+- 최대 64KB, 스키마 버전 1, 1~32개 스냅샷, 알려진 Provider/상태만 허용합니다. JSON에 인증정보 등 계약에 없는 필드가 있으면 거부합니다.
+- 파일을 영구적으로 감시하거나 외부 변경을 자동 반영하지 않습니다. 캐시에는 UI 표시용 데이터만 저장합니다.
+- JSON 샘플의 날짜는 예시 타임스탬프이므로 과거 자료면 `오래된 데이터`로 표시됩니다.
+- **현재는 최초 구현 단계:** Android CI 성공과 별개로 파일 선택·오류 UI·위젯 반영은 실기기에서 추가 검증해야 합니다.
