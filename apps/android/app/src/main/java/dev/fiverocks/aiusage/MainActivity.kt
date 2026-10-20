@@ -112,7 +112,7 @@ class MainActivity : ComponentActivity() {
                                     Text(provider.title, style = MaterialTheme.typography.titleMedium)
                                     val capability = ProviderCapabilities.mockResearch().getValue(provider)
                                     Text(
-                                        if (capability.liveQuotaEnabled) "직접 조회 가능" else "직접 조회 미연결 · 공식 quota API 미확인",
+                                        capability.connectionLabel(),
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                     val windows = snapshots.filter { it.provider == provider }
