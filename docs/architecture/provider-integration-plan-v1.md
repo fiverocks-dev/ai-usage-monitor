@@ -5,6 +5,14 @@
 - 상태: **공식 권한 검증 진행 중 / 모바일 실계정 연동 미승인**
 - 관련 설계: [모바일 아키텍처 v1](../architecture/mobile-architecture-v1.md)
 
+## 2026-10-20 추가 공식 검증 — 모바일 네이티브 조회
+
+- [OpenAI Sign in with ChatGPT 공식 Quickstart](https://developers.openai.com/siwc/quickstart) 및 [Codex app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)는 제3자 앱 로그인과 적격 Responses API 추론 요청 방법을 설명한다. **5h/주간 quota 잔여량을 제3자가 조회할 수 있는 API 스코프나 응답 규약은 여기서 확인되지 않는다.**
+- [OpenAI의 공식 가격·사용량 안내](https://developers.openai.com/ko-KR/docs/pricing)는 Codex CLI `/status` 및 사용자 사용량 대시보드를 안내한다. **앱에서 화면을 스크레이핑하거나 CLI 상태를 재사용할 근거는 아니다.**
+- [Anthropic Claude Code 시작하기](https://docs.anthropic.com/en/docs/claude-code/getting-started)는 정식 구독 로그인/Console 경로를 설명하지만, 제3자 Android 개인 구독 quota 조회 권한을 명시하지 않는다.
+- Antigravity CLI `/usage`와 CLI Status Line 출력은 **PC 경유**이므로 이번 제품 경로에서 채택하지 않는다.
+- 결과: **Claude Code, Codex, Antigravity Gemini/Claude 네 가지 모두 직접 Android quota 조회 승인은 UNKNOWN**. 미승인은 금지 확정과 구별한다. 실제 어댑터 코드를 활성화하지 않는다.
+
 ## 제품 범위 확정 (2026-10-20)
 
 **Android 직접 조회만 지원 대상으로 채택한다.** iOS는 후속으로 보류한다. Windows CLI, 데스크톱 브리지, 로컬 JSON 전송, LAN 동기화, 자체 서버는 실데이터 수집 경로에서 모두 **제외**한다.
