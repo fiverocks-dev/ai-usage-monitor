@@ -103,10 +103,18 @@ class MainActivity : ComponentActivity() {
                         Text("Mock 갱신 횟수 #$sequence · 누를 때마다 잔여량 변경", style = MaterialTheme.typography.bodySmall)
                         Text(widgetSyncStatus, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(16.dp))
+                        Text("Android 직접 연동: 공식 quota 조회 권한 검증 중")
+                        Text("현재 값은 Mock 또는 사용자가 가져온 로컬 JSON이며 실계정 자동 조회가 아닙니다.")
+                        Spacer(Modifier.height(12.dp))
                         ProviderId.entries.forEach { provider ->
                             ElevatedCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                                 Column(Modifier.padding(16.dp)) {
                                     Text(provider.title, style = MaterialTheme.typography.titleMedium)
+                                    val capability = ProviderCapabilities.mockResearch().getValue(provider)
+                                    Text(
+                                        if (capability.liveQuotaEnabled) "직접 조회 가능" else "직접 조회 미연결 · 공식 quota API 미확인",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
                                     val windows = snapshots.filter { it.provider == provider }
                                     if (windows.isEmpty()) Text("데이터 없음")
                                     windows.forEach { q ->
