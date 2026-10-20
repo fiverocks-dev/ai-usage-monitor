@@ -1,6 +1,8 @@
 package dev.fiverocks.aiusage
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
@@ -103,6 +105,16 @@ class MainActivity : ComponentActivity() {
                         Text("Mock 갱신 횟수 #$sequence · 누를 때마다 잔여량 변경", style = MaterialTheme.typography.bodySmall)
                         Text(widgetSyncStatus, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(16.dp))
+                        Text("실제 사용량 확인 (휴대폰 브라우저)")
+                        Text("공식 계정 페이지를 브라우저에서 엽니다. 앱이나 위젯에 값이 자동 입력되지는 않습니다.", style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(onClick = {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://claude.ai/settings/usage")))
+                        }) { Text("Claude 실제 사용량 보기") }
+                        OutlinedButton(onClick = {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/codex/cloud/settings/analytics#usage")))
+                        }) { Text("Codex 실제 사용량 보기") }
+                        Text("Antigravity: 공식 Android 웹 quota 화면 URL은 검증되지 않았습니다.", style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(8.dp))
                         Text("Android 직접 연동: 공식 quota 조회 권한 검증 중")
                         Text("현재 값은 Mock 또는 사용자가 가져온 로컬 JSON이며 실계정 자동 조회가 아닙니다.")
                         Spacer(Modifier.height(12.dp))
