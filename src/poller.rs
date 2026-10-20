@@ -999,7 +999,9 @@ fn fetch_antigravity_quota_summary(
                     "Antigravity quota bucket remaining: id={:?} window={:?} remaining_pct={:?}",
                     bucket.bucket_id,
                     bucket.window,
-                    bucket.remaining_fraction.map(|fraction| fraction.clamp(0.0, 1.0) * 100.0)
+                    bucket
+                        .remaining_fraction
+                        .map(|fraction| fraction.clamp(0.0, 1.0) * 100.0)
                 ));
             }
         }
