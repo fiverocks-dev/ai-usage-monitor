@@ -10,11 +10,15 @@ object WidgetCache {
     private const val STORE = "mock_widget_snapshots"
     private const val KEY = "snapshots"
     private const val REVISION = "mock_revision"
+    private const val SOURCE = "data_source"
+
+    fun source(context: Context): String =
+        context.getSharedPreferences(STORE, Context.MODE_PRIVATE).getString(SOURCE, "MOCK") ?: "MOCK"
 
     fun revision(context: Context): Int =
         context.getSharedPreferences(STORE, Context.MODE_PRIVATE).getInt(REVISION, 0)
 
-    fun save(context: Context, values: List<QuotaSnapshot>, revision: Int): Boolean {
+    fun save(context: Context, values: List<QuotaSnapshot>, revision: Int, source: String = "MOCK"): Boolean {
         val json = JSONArray()
         values.forEach { s ->
             json.put(JSONObject().apply {
@@ -29,6 +33,7 @@ object WidgetCache {
         return context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
             .putString(KEY, json.toString())
             .putInt(REVISION, revision)
+            .putString(SOURCE, source)
             .commit()
     }
 
