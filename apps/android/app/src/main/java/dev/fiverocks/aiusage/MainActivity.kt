@@ -106,13 +106,13 @@ class MainActivity : ComponentActivity() {
                         Text(widgetSyncStatus, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(16.dp))
                         Text("실제 사용량 확인 (휴대폰 브라우저)")
-                        Text("공식 계정 페이지를 브라우저에서 엽니다. 앱이나 위젯에 값이 자동 입력되지는 않습니다.", style = MaterialTheme.typography.bodySmall)
+                        Text("불안정한 사용량 딥링크 대신 공식 서비스 첫 화면을 엽니다. 로그인 후 설정 → 사용량으로 이동하세요. 앱·위젯 자동 동기화는 지원하지 않습니다.", style = MaterialTheme.typography.bodySmall)
                         OutlinedButton(onClick = {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://claude.ai/settings/usage")))
-                        }) { Text("Claude 실제 사용량 보기") }
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://claude.ai/")))
+                        }) { Text("Claude 열기 · 설정 → 사용량") }
                         OutlinedButton(onClick = {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/codex/cloud/settings/analytics#usage")))
-                        }) { Text("Codex 실제 사용량 보기") }
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/")))
+                        }) { Text("ChatGPT 열기 · 설정 → 사용량") }
                         Text("Antigravity: 공식 Android 웹 quota 화면 URL은 검증되지 않았습니다.", style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(8.dp))
                         Text("Android 직접 연동: 공식 quota 조회 권한 검증 중")
