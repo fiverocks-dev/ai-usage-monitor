@@ -2,6 +2,7 @@ package dev.fiverocks.aiusage
 
 import android.os.Bundle
 import android.content.Intent
+import android.content.ActivityNotFoundException
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +35,17 @@ class MainActivity : ComponentActivity() {
             val scope = rememberCoroutineScope()
             var widgetSyncStatus by remember { mutableStateOf("위젯 갱신 대기") }
             var dataSource by remember { mutableStateOf(WidgetCache.source(this@MainActivity)) }
+            var browserStatus by remember { mutableStateOf("") }
+            fun openOfficialSite(url: String) {
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+                    browserStatus = "브라우저 열기 요청 완료 · 사용량 화면 이동은 직접 확인 필요"
+                } catch (error: ActivityNotFoundException) {
+                    browserStatus = "웹 브라우저 앱을 찾을 수 없습니다"
+                } catch (error: SecurityException) {
+                    browserStatus = "브라우저 실행이 기기 정책에 의해 차단됐습니다"
+                }
+            }
             val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
                 if (uri != null) {
                     try {
@@ -108,11 +120,12 @@ class MainActivity : ComponentActivity() {
                         Text("실제 사용량 확인 (휴대폰 브라우저)")
                         Text("불안정한 사용량 딥링크 대신 공식 서비스 첫 화면을 엽니다. 로그인 후 설정 → 사용량으로 이동하세요. 앱·위젯 자동 동기화는 지원하지 않습니다.", style = MaterialTheme.typography.bodySmall)
                         OutlinedButton(onClick = {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://claude.ai/")))
+                            openOfficialSite("https://claude.ai/")
                         }) { Text("Claude 열기 · 설정 → 사용량") }
                         OutlinedButton(onClick = {
-                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/")))
+                            openOfficialSite("https://chatgpt.com/")
                         }) { Text("ChatGPT 열기 · 설정 → 사용량") }
+                        if (browserStatus.isNotEmpty()) Text(browserStatus, style = MaterialTheme.typography.bodySmall)
                         Text("Antigravity: 공식 Android 웹 quota 화면 URL은 검증되지 않았습니다.", style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(8.dp))
                         Text("Android 직접 연동: 공식 quota 조회 권한 검증 중")
