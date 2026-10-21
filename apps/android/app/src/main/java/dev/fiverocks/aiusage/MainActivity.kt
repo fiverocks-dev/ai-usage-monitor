@@ -36,6 +36,40 @@ class MainActivity : ComponentActivity() {
             var widgetSyncStatus by remember { mutableStateOf("위젯 갱신 대기") }
             var dataSource by remember { mutableStateOf(WidgetCache.source(this@MainActivity)) }
             var browserStatus by remember { mutableStateOf("") }
+            var codexFiveHour by remember { mutableStateOf("") }
+            var codexWeekly by remember { mutableStateOf("") }
+            var manualStatus by remember { mutableStateOf("") }
+            fun saveManualCodex() {
+                val five = codexFiveHour.trim().toIntOrNull()
+                val week = codexWeekly.trim().toIntOrNull()
+                if (five == null || week == null || five !in 0..100 || week !in 0..100) {
+                    manualStatus = "두 항목 모두 남은 비율 0~100 사이의 정수로 입력하세요"
+                    return
+                }
+                val now = System.currentTimeMillis() / 1000
+                val nextRevision = sequence + 1
+                val manual = listOf(
+                    QuotaSnapshot(ProviderId.CODEX, "5h", five / 100.0, null, now, QuotaStatus.FRESH),
+                    QuotaSnapshot(ProviderId.CODEX, "7d", week / 100.0, null, now, QuotaStatus.FRESH)
+                )
+                if (!WidgetCache.save(this@MainActivity, manual, nextRevision, "MANUAL_CODEX")) {
+                    manualStatus = "수동 입력 저장 실패"
+                    return
+                }
+                sequence = nextRevision
+                snapshots = manual
+                dataSource = "MANUAL_CODEX"
+                manualStatus = "수동 입력 저장됨 · 자동 동기화 아님"
+                scope.launch {
+                    try {
+                        QuotaWidget().updateAll(this@MainActivity)
+                        manualStatus = "Codex 수동 입력 위젯 갱신 요청 완료"
+                    } catch (error: Exception) {
+                        manualStatus = "저장 완료 · 위젯 갱신 요청 실패"
+                        Log.e("AIUsageWidget", "Manual Codex refresh failed", error)
+                    }
+                }
+            }
             fun openOfficialSite(url: String) {
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
@@ -117,6 +151,23 @@ class MainActivity : ComponentActivity() {
                         Text("Mock 갱신 횟수 #$sequence · 누를 때마다 잔여량 변경", style = MaterialTheme.typography.bodySmall)
                         Text(widgetSyncStatus, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(16.dp))
+                        Text("Codex 실제 화면값 수동 입력", style = MaterialTheme.typography.titleMedium)
+                        Text("Codex 사용량 화면에 나온 '남은 비율(%)'을 입력하세요. 사용한 비율이 표시되면 100에서 빼야 합니다. 이 값은 자동 갱신되지 않습니다.", style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(
+                            value = codexFiveHour,
+                            onValueChange = { codexFiveHour = it.take(3).filter(Char::isDigit) },
+                            label = { Text("Codex 5시간 남은 비율 (0~100)") },
+                            singleLine = true
+                        )
+                        OutlinedTextField(
+                            value = codexWeekly,
+                            onValueChange = { codexWeekly = it.take(3).filter(Char::isDigit) },
+                            label = { Text("Codex 주간 남은 비율 (0~100)") },
+                            singleLine = true
+                        )
+                        Button(onClick = { saveManualCodex() }) { Text("Codex 수동값 위젯에 적용") }
+                        if (manualStatus.isNotEmpty()) Text(manualStatus, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(12.dp))
                         Text("실제 사용량 확인 (휴대폰 브라우저)")
                         Text("불안정한 사용량 딥링크 대신 공식 서비스 첫 화면을 엽니다. 로그인 후 설정 → 사용량으로 이동하세요. 앱·위젯 자동 동기화는 지원하지 않습니다.", style = MaterialTheme.typography.bodySmall)
                         OutlinedButton(onClick = {
