@@ -27,7 +27,11 @@ class QuotaWidget : GlanceAppWidget() {
                     val summary = windows.joinToString("  ") { it.widgetText(now) }
                     Text("${provider.title}  $summary")
                 }
-                Text(if (source == "LOCAL_JSON") "로컬 JSON · 외부 API 미연결" else "예시 데이터 · 실제 사용량 아님")
+                Text(when (source) {
+                    "MANUAL_CODEX" -> "사용자 수동 입력 · 자동 갱신 안 됨"
+                    "LOCAL_JSON" -> "로컬 JSON · 외부 API 미연결"
+                    else -> "예시 데이터 · 실제 사용량 아님"
+                })
             }
         }
     }
