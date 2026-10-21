@@ -944,8 +944,13 @@ fn fetch_antigravity_quota_summary(
     project: &str,
 ) -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
     let agent = build_agent()?;
-    let body = serde_json::json!({ "project": project });
+    // The quota summary endpoint is account-scoped. The CLI uses an empty
+    // request body; supplying a project can yield only a partial pool list.
+    // Keep project for other API calls, but do not scope this summary by it.
+    let _ = project;
+    let body = serde_json::json!({});
 
+    diagnose::log("Antigravity retrieveUserQuotaSummary request_mode=account");
     let resp = match agent
         .post(&format!("{base_url}/v1internal:retrieveUserQuotaSummary"))
         .set("Authorization", &format!("Bearer {token}"))
