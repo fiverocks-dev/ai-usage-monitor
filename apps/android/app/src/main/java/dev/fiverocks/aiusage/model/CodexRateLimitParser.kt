@@ -22,6 +22,10 @@ object CodexRateLimitParser {
         val response = JSONObject(raw)
         require(!response.has("error")) { "Codex app-server returned error" }
         val result = response.optJSONObject("result") ?: error("Missing JSON-RPC result")
+        // Backend denial is authoritative even when the percentage looks positive.
+        val ordinaryUsageAllowed = if (result.isNull("ordinaryUsageAllowed")) null
+            else if (result.has("ordinaryUsageAllowed")) result.getBoolean("ordinaryUsageAllowed")
+            else null
         val limits = result.optJSONObject("rateLimits") ?: result
         val byLimit = result.optJSONObject("rateLimitsByLimitId")
         // Never report a different model's allowance as Codex quota.
@@ -39,7 +43,8 @@ object CodexRateLimitParser {
             val remaining = percent(window) ?: return@mapNotNull null
             QuotaSnapshot(
                 ProviderId.CODEX, name, remaining, timestamp(window),
-                fetchedAtEpochSeconds, QuotaStatus.FRESH
+                fetchedAtEpochSeconds,
+                if (ordinaryUsageAllowed == false) QuotaStatus.RATE_LIMITED else QuotaStatus.FRESH
             )
         }
         require(windows.isNotEmpty()) { "No supported Codex quota windows" }
