@@ -23,8 +23,11 @@ object CodexRateLimitParser {
         require(!response.has("error")) { "Codex app-server returned error" }
         val result = response.optJSONObject("result") ?: error("Missing JSON-RPC result")
         val limits = result.optJSONObject("rateLimits") ?: result
-        val selected = result.optJSONObject("rateLimitsByLimitId")
-            ?.optJSONObject("codex") ?: limits
+        val byLimit = result.optJSONObject("rateLimitsByLimitId")
+        // Never report a different model's allowance as Codex quota.
+        val selected = if (byLimit != null) {
+            byLimit.optJSONObject("codex") ?: error("Codex limit ID is missing")
+        } else limits
         val windows = listOf("primary", "secondary").mapNotNull { key ->
             val window = selected.optJSONObject(key) ?: return@mapNotNull null
             val minutes = window.optInt("windowDurationMins", 0)
