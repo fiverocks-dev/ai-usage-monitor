@@ -47,6 +47,16 @@ class CodexRateLimitParserTest {
         }
     }
 
+    @Test fun explicitBackendDenialOverridesRemainingPercentage() {
+        val denied = """{"result":{"ordinaryUsageAllowed":false,"rateLimits":{"primary":{"usedPercent":5,"windowDurationMins":300}}}}"""
+        val parsed = CodexRateLimitParser.parse(denied, 1700000000L)
+        assertEquals(0.95, parsed.single().remainingFraction!!, 0.00001)
+        assertEquals(QuotaStatus.RATE_LIMITED, parsed.single().status)
+
+        val unknown = """{"result":{"ordinaryUsageAllowed":null,"rateLimits":{"primary":{"usedPercent":5,"windowDurationMins":300}}}}"""
+        assertEquals(QuotaStatus.FRESH, CodexRateLimitParser.parse(unknown, 1700000000L).single().status)
+    }
+
     @Test fun refusesUnknownWindowsAndInvalidPercent() {
         assertThrows(IllegalArgumentException::class.java) {
             CodexRateLimitParser.parse("""{"result":{"primary":{"usedPercent":110,"windowDurationMins":300}}}""", 1)
