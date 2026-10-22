@@ -140,3 +140,11 @@ Android 앱과 위젯의 스냅샷 일치성·갱신 상태 진단을 강화한 
 - `rateLimitsByLimitId`가 존재하면 `codex` 버킷의 존재를 필수로 검사합니다.
 - `codex`가 없는데 과거 `rateLimits` 단일 버킷으로 대체하면 **다른 모델 한도를 Codex로 오인할 위험**이 있으므로 거부합니다.
 - 회귀 테스트를 추가했습니다. 이 조치는 **파서 안전성 개선**이며 모바일 실계정 API 연결은 아직 수행하지 않았습니다.
+
+## Codex 사용량 URL 확정 (2026-10-23)
+
+- 사용자 실기기에서 로그인 및 5시간·주간 한도 표시가 확인된 주소: `https://chatgpt.com/settings/usage?tab=overview`.
+- Android 앱의 Codex 브라우저 버튼을 이 주소로 변경. 브라우저 로그인·표시 성공과 앱의 직접 데이터 수집 성공을 구별합니다.
+- 공식 Help Center도 **Settings → Usage**에서 남은 quota/초기화 시간을 확인하라고 안내합니다: https://help.openai.com/en/articles/20001516-managing-usage-with-gpt-6-astra-in-work-and-codex
+- 인증되지 않은 URL 직접 요청에서는 계정별 잔여율이 반환되지 않았으므로 브라우저 쿠키를 자동으로 읽거나 크롤링한 것으로 취급하지 않습니다.
+- **남은 문제:** 공식적으로 허용된 Android 인증 세션과 quota 데이터 접근 인터페이스가 필요. 현재 실제 사용량 자동 수집은 미구현입니다.
