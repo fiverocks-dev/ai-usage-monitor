@@ -135,3 +135,8 @@ Android 앱과 위젯의 스냅샷 일치성·갱신 상태 진단을 강화한 
 - 이 코드는 **파서만 구현**한 것입니다. 공개 app-server 프로토콜을 외부 Android 공개 API 또는 모바일 OAuth quota 권한과 혼동하지 않습니다. 아직 인증·네트워크 어댑터나 자동 동기화는 없습니다.
 - 실제 계정에서 인증된 스냅샷을 전달받는 합법적 모바일 경로가 확보되기 전에는 `CodexRateLimitParser.parse`를 위젯의 자동 새로고침 경로에 연결하지 않습니다.
 - 출처: [Codex 공식 공개 app-server protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/common.rs).
+
+## Codex 여러 모델 사용량 혼동 방지 (2026-10-22)
+- `rateLimitsByLimitId`가 존재하면 `codex` 버킷의 존재를 필수로 검사합니다.
+- `codex`가 없는데 과거 `rateLimits` 단일 버킷으로 대체하면 **다른 모델 한도를 Codex로 오인할 위험**이 있으므로 거부합니다.
+- 회귀 테스트를 추가했습니다. 이 조치는 **파서 안전성 개선**이며 모바일 실계정 API 연결은 아직 수행하지 않았습니다.
