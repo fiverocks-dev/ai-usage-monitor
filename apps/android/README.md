@@ -126,3 +126,12 @@ Android 앱과 위젯의 스냅샷 일치성·갱신 상태 진단을 강화한 
 - 새로고침되지 않으면 15분 경과 후 기존 stale 표시 정책에 따라 오래된 데이터가 됩니다(위젯 리렌더 시 계산). reset 시간은 확인·입력하지 않았으므로 표시하지 않습니다.
 - 저장은 앱 로컬 캐시에만 적용되고 백업은 꺼져 있습니다. 공식 Provider 조회 권한과는 무관합니다.
 - Android 빌드와 별도로 실기기에서 키보드 입력·캐시 유지·위젯 갱신을 테스트해야 합니다.
+
+## Codex app-server Rate Limit 응답 디코더 (2026-10-22)
+
+- 공식 Codex 앱서버 JSON-RPC `account/rateLimits/read`의 공개 응답 구조를 참고해 `CodexRateLimitParser` 순수 파서를 추가했습니다.
+- 300분 윈도우를 `5h`, 10080분을 `7d`로 식별하고 **사용한 비율(usedPercent) → 남은 비율(remainingFraction)**로 변환합니다. 순서로 5h/7d를 추정하지 않습니다.
+- 응답 오류, 알 수 없는 기간, 비율 범위 오류, 중복은 거부하며 단위 테스트를 포함합니다.
+- 이 코드는 **파서만 구현**한 것입니다. 공개 app-server 프로토콜을 외부 Android 공개 API 또는 모바일 OAuth quota 권한과 혼동하지 않습니다. 아직 인증·네트워크 어댑터나 자동 동기화는 없습니다.
+- 실제 계정에서 인증된 스냅샷을 전달받는 합법적 모바일 경로가 확보되기 전에는 `CodexRateLimitParser.parse`를 위젯의 자동 새로고침 경로에 연결하지 않습니다.
+- 출처: [Codex 공식 공개 app-server protocol](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/src/protocol/common.rs).
