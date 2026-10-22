@@ -25,6 +25,18 @@ class CodexRateLimitParserTest {
         assertEquals(1.0, parsed.single().remainingFraction!!, 0.0)
     }
 
+    @Test fun prefersCodexBucketOverLegacyView() {
+        val raw = """
+          {"result":{"rateLimits":{"primary":{"usedPercent":95,"windowDurationMins":300}},
+            "rateLimitsByLimitId":{"codex":{"primary":{"usedPercent":40,"windowDurationMins":300},
+              "secondary":{"usedPercent":10,"windowDurationMins":10080}}}}}
+        """.trimIndent()
+        val result = CodexRateLimitParser.parse(raw, 1700000000L)
+        assertEquals(2, result.size)
+        assertEquals(0.6, result.first { it.windowId == "5h" }.remainingFraction!!, 0.00001)
+        assertEquals(0.9, result.first { it.windowId == "7d" }.remainingFraction!!, 0.00001)
+    }
+
     @Test fun refusesUnknownWindowsAndInvalidPercent() {
         assertThrows(IllegalArgumentException::class.java) {
             CodexRateLimitParser.parse("""{"result":{"primary":{"usedPercent":110,"windowDurationMins":300}}}""", 1)
