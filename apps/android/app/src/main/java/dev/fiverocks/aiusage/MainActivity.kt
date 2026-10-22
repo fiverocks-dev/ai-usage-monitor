@@ -169,13 +169,13 @@ class MainActivity : ComponentActivity() {
                         if (manualStatus.isNotEmpty()) Text(manualStatus, style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(12.dp))
                         Text("실제 사용량 확인 (휴대폰 브라우저)")
-                        Text("불안정한 사용량 딥링크 대신 공식 서비스 첫 화면을 엽니다. 로그인 후 설정 → 사용량으로 이동하세요. 앱·위젯 자동 동기화는 지원하지 않습니다.", style = MaterialTheme.typography.bodySmall)
+                        Text("사용자가 확인한 Codex 사용량 URL을 브라우저로 엽니다. 로그인 상태와 사용량 표시 여부는 브라우저에서 확인하세요. 앱·위젯은 자동으로 읽지 않습니다.", style = MaterialTheme.typography.bodySmall)
                         OutlinedButton(onClick = {
                             openOfficialSite("https://claude.ai/")
                         }) { Text("Claude 열기 · 설정 → 사용량") }
                         OutlinedButton(onClick = {
-                            openOfficialSite("https://chatgpt.com/")
-                        }) { Text("ChatGPT 열기 · 설정 → 사용량") }
+                            openOfficialSite("https://chatgpt.com/settings/usage?tab=overview")
+                        }) { Text("Codex / Work 사용량 열기") }
                         if (browserStatus.isNotEmpty()) Text(browserStatus, style = MaterialTheme.typography.bodySmall)
                         Text("Antigravity: 공식 Android 웹 quota 화면 URL은 검증되지 않았습니다.", style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(8.dp))
