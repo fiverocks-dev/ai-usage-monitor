@@ -78,6 +78,7 @@ struct AppState {
     show_antigravity: bool,
     show_session_window: bool,
     show_weekly_window: bool,
+    weekly_first: bool,
     alert_threshold_percent: u8,
     notified_quota_windows: BTreeSet<String>,
 
@@ -144,6 +145,8 @@ const IDM_MODEL_CODEX: u16 = 61;
 const IDM_MODEL_ANTIGRAVITY: u16 = 62;
 const IDM_SHOW_SESSION_WINDOW: u16 = 71;
 const IDM_SHOW_WEEKLY_WINDOW: u16 = 72;
+const IDM_ORDER_SESSION_FIRST: u16 = 73;
+const IDM_ORDER_WEEKLY_FIRST: u16 = 74;
 const IDM_ALERT_OFF: u16 = 80;
 const IDM_ALERT_10: u16 = 81;
 const IDM_ALERT_20: u16 = 82;
@@ -525,6 +528,8 @@ struct SettingsFile {
     #[serde(default = "default_show_usage_window")]
     show_weekly_window: bool,
     #[serde(default)]
+    weekly_first: bool,
+    #[serde(default)]
     alert_threshold_percent: u8,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     notified_quota_windows: Vec<String>,
@@ -544,6 +549,7 @@ impl Default for SettingsFile {
             show_antigravity: false,
             show_session_window: true,
             show_weekly_window: true,
+            weekly_first: false,
             alert_threshold_percent: 0,
             notified_quota_windows: Vec::new(),
         }
@@ -671,6 +677,7 @@ fn save_state_settings() {
             show_antigravity: s.show_antigravity,
             show_session_window: s.show_session_window,
             show_weekly_window: s.show_weekly_window,
+            weekly_first: s.weekly_first,
             alert_threshold_percent: s.alert_threshold_percent,
             notified_quota_windows: s.notified_quota_windows.iter().cloned().collect(),
         });
@@ -695,13 +702,23 @@ fn service_tooltip(
     weekly_text: &str,
     show_session_window: bool,
     show_weekly_window: bool,
+    weekly_first: bool,
 ) -> String {
     let mut parts = Vec::new();
-    if show_weekly_window {
-        parts.push(format!("7d {weekly_text}"));
-    }
-    if show_session_window {
-        parts.push(format!("5h {session_text}"));
+    if weekly_first {
+        if show_weekly_window {
+            parts.push(format!("7d {weekly_text}"));
+        }
+        if show_session_window {
+            parts.push(format!("5h {session_text}"));
+        }
+    } else {
+        if show_session_window {
+            parts.push(format!("5h {session_text}"));
+        }
+        if show_weekly_window {
+            parts.push(format!("7d {weekly_text}"));
+        }
     }
     format!("{service}: {}", parts.join(" | "))
 }
@@ -713,16 +730,26 @@ fn antigravity_gemini_tooltip(
     show_session_window: bool,
     show_weekly_window: bool,
     usage: Option<&crate::models::UsageData>,
+    weekly_first: bool,
 ) -> String {
     let is_model_fallback = usage
         .is_some_and(|usage| usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0);
     if is_model_fallback {
         let mut parts = Vec::new();
-        if show_weekly_window {
-            parts.push("7d unavailable".to_string());
-        }
-        if show_session_window {
-            parts.push(format!("model quota {session_text} (window unverified)"));
+        if weekly_first {
+            if show_weekly_window {
+                parts.push("7d unavailable".to_string());
+            }
+            if show_session_window {
+                parts.push(format!("model quota {session_text} (window unverified)"));
+            }
+        } else {
+            if show_session_window {
+                parts.push(format!("model quota {session_text} (window unverified)"));
+            }
+            if show_weekly_window {
+                parts.push("7d unavailable".to_string());
+            }
         }
         format!("AG-G: {}", parts.join(" | "))
     } else {
@@ -732,6 +759,7 @@ fn antigravity_gemini_tooltip(
             weekly_text,
             show_session_window,
             show_weekly_window,
+            weekly_first,
         )
     }
 }
@@ -928,6 +956,7 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                 ));
             }
             if s.show_codex {
@@ -937,6 +966,7 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.codex_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                 ));
             }
             if s.show_antigravity {
@@ -945,7 +975,9 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.antigravity_gemini_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                     s.data.as_ref().and_then(|data| data.antigravity.as_ref()),
+                    s.weekly_first,
                 ));
                 services.push(service_tooltip(
                     "AG-C",
@@ -953,6 +985,7 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.antigravity_claude_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                 ));
             }
             Some(tray_icon::TrayIconData {
@@ -2005,6 +2038,7 @@ pub fn run() {
                 show_antigravity: settings.show_antigravity,
                 show_session_window: settings.show_session_window,
                 show_weekly_window: settings.show_weekly_window,
+                weekly_first: settings.weekly_first,
                 alert_threshold_percent: settings.alert_threshold_percent,
                 notified_quota_windows: settings.notified_quota_windows.into_iter().collect(),
                 data: None,
@@ -2139,6 +2173,7 @@ fn render_layered() {
         show_antigravity,
         show_session_window,
         show_weekly_window,
+        weekly_first,
     ) = {
         let state = lock_state();
         match state.as_ref() {
@@ -2169,6 +2204,7 @@ fn render_layered() {
                 s.show_antigravity,
                 s.show_session_window,
                 s.show_weekly_window,
+                s.weekly_first,
             ),
             None => return,
         }
@@ -2272,6 +2308,7 @@ fn render_layered() {
             show_antigravity,
             show_session_window,
             show_weekly_window,
+            weekly_first,
             &codex_accent,
             &antigravity_gemini_accent,
             &antigravity_claude_accent,
@@ -2357,6 +2394,7 @@ fn paint_content(
     show_antigravity: bool,
     show_session_window: bool,
     show_weekly_window: bool,
+    weekly_first: bool,
     codex_accent: &Color,
     antigravity_gemini_accent: &Color,
     antigravity_claude_accent: &Color,
@@ -2467,7 +2505,7 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_weekly_window {
-                    row2_y
+                    if weekly_first { row2_y } else { row1_y }
                 } else {
                     single_row_y
                 },
@@ -2499,7 +2537,7 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_session_window {
-                    row1_y
+                    if weekly_first { row1_y } else { row2_y }
                 } else {
                     single_row_y
                 },
@@ -3468,6 +3506,17 @@ unsafe extern "system" fn wnd_proc(
                     // Reset the poll timer with the new interval
                     SetTimer(hwnd, TIMER_POLL, new_interval, None);
                 }
+                IDM_ORDER_SESSION_FIRST | IDM_ORDER_WEEKLY_FIRST => {
+                    {
+                        let mut state = lock_state();
+                        if let Some(s) = state.as_mut() {
+                            s.weekly_first = id == IDM_ORDER_WEEKLY_FIRST;
+                        }
+                    }
+                    save_state_settings();
+                    render_layered();
+                    sync_tray_icons(hwnd);
+                }
                 IDM_SHOW_SESSION_WINDOW | IDM_SHOW_WEEKLY_WINDOW => {
                     {
                         let mut state = lock_state();
@@ -3653,6 +3702,7 @@ fn show_context_menu(hwnd: HWND) {
             show_antigravity,
             show_session_window,
             show_weekly_window,
+            weekly_first,
             alert_threshold_percent,
         ) = {
             let state = lock_state();
@@ -3671,6 +3721,7 @@ fn show_context_menu(hwnd: HWND) {
                     s.show_antigravity,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                     s.alert_threshold_percent,
                 ),
                 None => (
@@ -3687,6 +3738,7 @@ fn show_context_menu(hwnd: HWND) {
                     false,
                     true,
                     true,
+                    false,
                     0,
                 ),
             }
@@ -3820,6 +3872,24 @@ fn show_context_menu(hwnd: HWND) {
             IDM_SHOW_WEEKLY_WINDOW as usize,
             PCWSTR::from_raw(weekly_label.as_ptr()),
         );
+        let _ = AppendMenuW(usage_menu, MF_SEPARATOR, 0, PCWSTR::null());
+        for (id, is_weekly_first, label) in [
+            (IDM_ORDER_SESSION_FIRST, false, "5h / 7d"),
+            (IDM_ORDER_WEEKLY_FIRST, true, "7d / 5h"),
+        ] {
+            let label_str = native_interop::wide_str(label);
+            let flags = if weekly_first == is_weekly_first {
+                MF_CHECKED
+            } else {
+                MENU_ITEM_FLAGS(0)
+            };
+            let _ = AppendMenuW(
+                usage_menu,
+                flags,
+                id as usize,
+                PCWSTR::from_raw(label_str.as_ptr()),
+            );
+        }
         let usage_label = native_interop::wide_str(if language == LanguageId::SimplifiedChinese {
             "显示用量"
         } else {
