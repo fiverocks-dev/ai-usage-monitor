@@ -2,7 +2,7 @@
 # Prints only quota group names and percentages; never prints CSRF tokens, account IDs or raw responses.
 param([int]$TimeoutSeconds = 3)
 $ErrorActionPreference = 'Stop'
-$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Net.Http
 $service = '/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary'
 $processes = @(Get-CimInstance Win32_Process | Where-Object {
     $_.Name -match 'language_server.*\.exe$' -and
@@ -19,7 +19,7 @@ foreach ($proc in $processes) {
     $m = [regex]::Match($cmd, '(?i)(?:--csrf_token|--extension_server_csrf_token)(?:=|\s+)(?:"([^"]+)"|([^\s]+))')
     if (-not $m.Success) { continue }
     $csrf = if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value }
-    $ports = @(Get-NetTCPConnection -State Listen -OwningProcess $proc.ProcessId -ErrorAction SilentlyContinue |
+    $ports = @(Get-NetTCPConnection -State Listen -OwningProcess ([int]$proc.ProcessId) -ErrorAction SilentlyContinue |
         Where-Object { $_.LocalAddress -in @('127.0.0.1','::1','0.0.0.0','::') } |
         Select-Object -ExpandProperty LocalPort -Unique)
     foreach ($port in $ports) {
