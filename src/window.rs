@@ -975,7 +975,6 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.antigravity_gemini_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
-                    s.weekly_first,
                     s.data.as_ref().and_then(|data| data.antigravity.as_ref()),
                     s.weekly_first,
                 ));
@@ -2505,7 +2504,11 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_weekly_window {
-                    if weekly_first { row2_y } else { row1_y }
+                    if weekly_first {
+                        row2_y
+                    } else {
+                        row1_y
+                    }
                 } else {
                     single_row_y
                 },
@@ -2537,7 +2540,11 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_session_window {
-                    if weekly_first { row1_y } else { row2_y }
+                    if weekly_first {
+                        row1_y
+                    } else {
+                        row2_y
+                    }
                 } else {
                     single_row_y
                 },
@@ -4128,6 +4135,7 @@ fn paint(hdc: HDC, hwnd: HWND) {
         show_antigravity,
         show_session_window,
         show_weekly_window,
+        weekly_first,
     ) = {
         let state = lock_state();
         match state.as_ref() {
@@ -4156,6 +4164,7 @@ fn paint(hdc: HDC, hwnd: HWND) {
                 s.show_antigravity,
                 s.show_session_window,
                 s.show_weekly_window,
+                s.weekly_first,
             ),
             None => return,
         }
@@ -4227,6 +4236,7 @@ fn paint(hdc: HDC, hwnd: HWND) {
             show_antigravity,
             show_session_window,
             show_weekly_window,
+            weekly_first,
             &codex_accent,
             &antigravity_gemini_accent,
             &antigravity_claude_accent,
@@ -4540,12 +4550,13 @@ mod tests {
                 "剩余13% 19:04重置",
                 "剩余86% 07/18重置",
                 true,
-                true
+                true,
+                false
             ),
-            "Codex: 7d 剩余86% 07/18重置 | 5h 剩余13% 19:04重置"
+            "Codex: 5h 剩余13% 19:04重置 | 7d 剩余86% 07/18重置"
         );
         assert_eq!(
-            service_tooltip("Claude Code", "13%", "86%", false, true),
+            service_tooltip("Claude Code", "13%", "86%", false, true, false),
             "Claude Code: 7d 86%"
         );
     }
@@ -4560,13 +4571,27 @@ mod tests {
             weekly: crate::models::UsageSection::default(),
         };
         assert_eq!(
-            antigravity_gemini_tooltip("75% left", "--", true, true, Some(&usage)),
-            "AG-G: 7d unavailable | model quota 75% left (window unverified)"
+            antigravity_gemini_tooltip("75% left", "--", true, true, Some(&usage), false),
+            "AG-G: model quota 75% left (window unverified) | 7d unavailable"
         );
         assert_eq!(
-            antigravity_gemini_tooltip("75% left", "40% left", true, true, None),
-            "AG-G: 7d 40% left | 5h 75% left"
+            antigravity_gemini_tooltip("75% left", "40% left", true, true, None, false),
+            "AG-G: 5h 75% left | 7d 40% left"
         );
+    }
+
+    #[test]
+    fn weekly_first_tooltip_order_is_selectable() {
+        assert_eq!(
+            service_tooltip("AG-C", "80%", "70%", true, true, true),
+            "AG-C: 7d 70% | 5h 80%"
+        );
+    }
+
+    #[test]
+    fn legacy_settings_default_to_session_first() {
+        let settings: SettingsFile = serde_json::from_str("{}").expect("legacy settings");
+        assert!(!settings.weekly_first);
     }
 
     #[test]
