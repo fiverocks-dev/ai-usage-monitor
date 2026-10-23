@@ -81,10 +81,24 @@ foreach ($proc in $processes) {
                     $name = [string]$group.displayName
                     # Bound printed label length and remove control chars.
                     $name = -join ($name.ToCharArray() | Where-Object { [int]$_ -ge 32 } | Select-Object -First 120)
-                    foreach ($bucket in @($group.buckets | Where-Object { $null -ne $_ })) {
-                        $fraction = $bucket.remainingFraction
-                        $pct = if ($null -ne $fraction) { '{0:N2}' -f ([Math]::Max(0,[Math]::Min(1,[double]$fraction))*100) } else { 'unknown' }
-                        Write-Output ("group={0} window={1} remaining_pct={2}" -f $name,([string]$bucket.window),$pct)
+                    $buckets = @($group.buckets | Where-Object { $null -ne $_ })
+                    Write-Output ("group={0} bucket_count={1}" -f $name,$buckets.Count)
+                    foreach ($bucket in $buckets) {
+                        $bucketId = [string]$bucket.bucketId
+                        $bucketName = [string]$bucket.displayName
+                        $bucketId = -join ($bucketId.ToCharArray() | Where-Object { [int]$_ -ge 32 } | Select-Object -First 80)
+                        $bucketName = -join ($bucketName.ToCharArray() | Where-Object { [int]$_ -ge 32 } | Select-Object -First 80)
+                        $fractionProperty = $bucket.PSObject.Properties['remainingFraction']
+                        $fraction = if ($null -ne $fractionProperty) { $fractionProperty.Value } else { $null }
+                        $pct = if ($null -ne $fraction -and $fraction -is [ValueType]) {
+                            '{0:N2}' -f ([Math]::Max(0,[Math]::Min(1,[double]$fraction))*100)
+                        } else { 'unknown' }
+                        $numericFieldNames = @($bucket.PSObject.Properties | Where-Object {
+                            $_.Value -is [ValueType] -and $_.Name -match '(?i)fraction|limit|quota|remaining|used'
+                        } | ForEach-Object { $_.Name } | Sort-Object)
+                        $reset = if ($null -ne $bucket.resetTime) { 'present' } else { 'absent' }
+                        Write-Output ("bucket: group={0} id={1} name={2} window={3} remaining_pct={4} fraction_present={5} reset_time={6} numeric_fields={7}" -f
+                            $name,$bucketId,$bucketName,([string]$bucket.window),$pct,($null -ne $fractionProperty -and $null -ne $fraction),$reset,($numericFieldNames -join ','))
                     }
                 }
                 $found = $true
