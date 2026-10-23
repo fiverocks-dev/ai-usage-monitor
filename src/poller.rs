@@ -767,7 +767,39 @@ fn fetch_antigravity_usage_from_endpoint(
     let project = fetch_antigravity_project(base_url, token)?;
     if let Some(project) = project.as_deref() {
         match fetch_antigravity_quota_summary(base_url, token, project) {
-            Ok(data) => return Ok(data),
+            Ok((gemini, claude)) => {
+                if gemini.is_some() && claude.is_some() {
+                    return Ok((gemini, claude));
+                }
+                let mut gemini = gemini;
+                let mut claude = claude;
+                diagnose::log(format!(
+                    "Antigravity quota summary incomplete: gemini_present={} claude_present={}; trying model quota fallback",
+                    gemini.is_some(),
+                    claude.is_some()
+                ));
+                match fetch_antigravity_model_quotas(base_url, token, Some(project)) {
+                    Ok((model_gemini, model_claude)) => {
+                        let to_usage = |session: Option<UsageSection>| {
+                            session.map(|session| UsageData {
+                                session,
+                                weekly: UsageSection::default(),
+                            })
+                        };
+                        gemini = gemini.or_else(|| to_usage(model_gemini));
+                        claude = claude.or_else(|| to_usage(model_claude));
+                        if gemini.is_some() || claude.is_some() {
+                            return Ok((gemini, claude));
+                        }
+                    }
+                    Err(error) => diagnose::log(format!(
+                        "Antigravity partial quota fallback failed: {error:?}"
+                    )),
+                }
+                if gemini.is_some() || claude.is_some() {
+                    return Ok((gemini, claude));
+                }
+            },
             Err(PollError::AuthRequired) => return Err(PollError::AuthRequired),
             Err(error) => diagnose::log(format!(
                 "Antigravity retrieveUserQuotaSummary failed, falling back to model quota: {error:?}"
@@ -866,7 +898,21 @@ fn fetch_antigravity_model_quotas(
 
     let mut gemini_sections = Vec::new();
     let mut claude_sections = Vec::new();
+    if diagnose::is_enabled() {
+        diagnose::log(format!(
+            "Antigravity model quota response: model_count={}",
+            response.models.len()
+        ));
+    }
     for (model, info) in response.models {
+        if diagnose::is_enabled() {
+            diagnose::log(format!(
+                "Antigravity model: id={model:?} quota_present={} remaining_present={} reset_present={}",
+                info.quota_info.is_some(),
+                info.quota_info.as_ref().is_some_and(|q| q.remaining_fraction.is_some()),
+                info.quota_info.as_ref().is_some_and(|q| q.reset_time.is_some())
+            ));
+        }
         let Some(quota) = info.quota_info else {
             continue;
         };
@@ -874,10 +920,15 @@ fn fetch_antigravity_model_quotas(
             continue;
         };
         let model = model.to_ascii_lowercase();
-        if model.starts_with("gemini") {
+        if model.starts_with("gemini") || model.contains("gemini-") || model.contains("gemini_") {
             gemini_sections.push(section);
-        } else if model.starts_with("claude") {
+        } else if model.starts_with("claude")
+            || model.contains("claude-")
+            || model.contains("claude_")
+        {
             claude_sections.push(section);
+        } else {
+            diagnose::log(format!("Antigravity unrecognized quota model id: {model}"));
         }
     }
 
@@ -893,8 +944,13 @@ fn fetch_antigravity_quota_summary(
     project: &str,
 ) -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
     let agent = build_agent()?;
-    let body = serde_json::json!({ "project": project });
+    // The quota summary endpoint is account-scoped. The CLI uses an empty
+    // request body; supplying a project can yield only a partial pool list.
+    // Keep project for other API calls, but do not scope this summary by it.
+    let _ = project;
+    let body = serde_json::json!({});
 
+    diagnose::log("Antigravity retrieveUserQuotaSummary request_mode=account");
     let resp = match agent
         .post(&format!("{base_url}/v1internal:retrieveUserQuotaSummary"))
         .set("Authorization", &format!("Bearer {token}"))
@@ -920,6 +976,41 @@ fn fetch_antigravity_quota_summary(
             return Err(PollError::RequestFailed);
         }
     };
+
+    if diagnose::is_enabled() {
+        let groups = response.groups.as_deref().unwrap_or_default();
+        diagnose::log(format!(
+            "Antigravity quota summary: group_count={}",
+            groups.len()
+        ));
+        for group in groups {
+            diagnose::log(format!(
+                "Antigravity quota group: name={:?} description={:?} family={:?} bucket_count={}",
+                group.display_name,
+                group.description,
+                antigravity_summary_group_family(group),
+                group.buckets.as_ref().map_or(0, Vec::len)
+            ));
+            for bucket in group.buckets.as_deref().unwrap_or_default() {
+                diagnose::log(format!(
+                    "Antigravity quota bucket: id={:?} name={:?} window={:?} remaining_present={} reset_present={}",
+                    bucket.bucket_id,
+                    bucket.display_name,
+                    bucket.window,
+                    bucket.remaining_fraction.is_some(),
+                    bucket.reset_time.is_some()
+                ));
+                diagnose::log(format!(
+                    "Antigravity quota bucket remaining: id={:?} window={:?} remaining_pct={:?}",
+                    bucket.bucket_id,
+                    bucket.window,
+                    bucket
+                        .remaining_fraction
+                        .map(|fraction| fraction.clamp(0.0, 1.0) * 100.0)
+                ));
+            }
+        }
+    }
 
     antigravity_usage_from_summary(response).ok_or(PollError::RequestFailed)
 }
@@ -954,10 +1045,24 @@ fn antigravity_usage_from_summary(
         match family {
             Some(AntigravityFamily::Gemini) if gemini.is_none() => gemini = usage,
             Some(AntigravityFamily::Claude) if claude.is_none() => claude = usage,
-            _ => {}
+            Some(AntigravityFamily::Argon) => {
+                diagnose::log("Antigravity separate Argon quota detected; excluded from Gemini and Claude totals");
+            }
+            _ => {
+                diagnose::log("Antigravity quota summary group not mapped to an empty family slot")
+            }
         }
     }
 
+    if diagnose::is_enabled() {
+        if let Some(usage) = claude.as_ref() {
+            diagnose::log(format!(
+                "Antigravity selected Claude remaining: weekly_pct={:.2} five_hour_pct={:.2}",
+                remaining_percentage(usage.weekly.percentage),
+                remaining_percentage(usage.session.percentage)
+            ));
+        }
+    }
     (gemini.is_some() || claude.is_some()).then_some((gemini, claude))
 }
 
@@ -990,11 +1095,22 @@ fn antigravity_usage_from_summary_group(group: AntigravityQuotaSummaryGroup) -> 
 enum AntigravityFamily {
     Gemini,
     Claude,
+    Argon,
 }
 
 fn antigravity_summary_group_family(
     group: &AntigravityQuotaSummaryGroup,
 ) -> Option<AntigravityFamily> {
+    // A dedicated Argon group can contain the word "Gemini". Its weekly quota
+    // must not be mistaken for the ordinary Gemini shared quota. Only classify
+    // by group identity, not an incidental mention in the description.
+    if group
+        .display_name
+        .as_deref()
+        .is_some_and(|name| name.to_ascii_lowercase().contains("argon"))
+    {
+        return Some(AntigravityFamily::Argon);
+    }
     let mut haystacks = Vec::new();
     if let Some(name) = group.display_name.as_deref() {
         haystacks.push(name.to_ascii_lowercase());
@@ -1742,6 +1858,45 @@ mod tests {
         assert!(data.antigravity.is_none());
         assert!(data.antigravity_claude.is_none());
         assert_eq!(data.codex.unwrap().session.percentage, 42.0);
+    }
+
+    #[test]
+    fn antigravity_summary_with_only_claude_does_not_invent_gemini() {
+        let response: AntigravityQuotaSummaryResponse = serde_json::from_str(
+            r#"{"groups":[{"displayName":"Claude models","buckets":[{"window":"5h","remainingFraction":0.5}]}]}"#,
+        )
+        .expect("valid summary");
+        let (gemini, claude) = antigravity_usage_from_summary(response).expect("partial result");
+        assert!(gemini.is_none());
+        assert!(claude.is_some());
+    }
+
+    #[test]
+    fn separate_argon_weekly_quota_is_not_gemini_weekly_quota() {
+        let response: AntigravityQuotaSummaryResponse = serde_json::from_str(
+            r#"{"groups":[
+                {"displayName":"Gemini 4 Argon",
+                 "buckets":[{"bucketId":"argon-weekly","window":"weekly","remainingFraction":0.97}]},
+                {"displayName":"Claude and GPT models",
+                 "buckets":[{"window":"weekly","remainingFraction":0.10}]}
+            ]}"#,
+        )
+        .expect("valid summary");
+        let (gemini, claude) = antigravity_usage_from_summary(response).expect("Claude present");
+        assert!(gemini.is_none(), "Argon must not fill the Gemini family");
+        assert!((claude.expect("Claude quota").weekly.percentage - 90.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn shared_gemini_group_with_argon_in_description_is_still_gemini() {
+        let response: AntigravityQuotaSummaryResponse = serde_json::from_str(
+            r#"{"groups":[{"displayName":"Gemini Models",
+                "description":"Argon quota included in this Gemini group for Ultra",
+                "buckets":[{"window":"weekly","remainingFraction":0.99}]}]}"#,
+        )
+        .expect("valid summary");
+        let (gemini, _) = antigravity_usage_from_summary(response).expect("Gemini present");
+        assert!((gemini.expect("Gemini quota").weekly.percentage - 1.0).abs() < 0.001);
     }
 
     #[test]

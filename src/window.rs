@@ -78,6 +78,7 @@ struct AppState {
     show_antigravity: bool,
     show_session_window: bool,
     show_weekly_window: bool,
+    weekly_first: bool,
     alert_threshold_percent: u8,
     notified_quota_windows: BTreeSet<String>,
 
@@ -144,6 +145,8 @@ const IDM_MODEL_CODEX: u16 = 61;
 const IDM_MODEL_ANTIGRAVITY: u16 = 62;
 const IDM_SHOW_SESSION_WINDOW: u16 = 71;
 const IDM_SHOW_WEEKLY_WINDOW: u16 = 72;
+const IDM_ORDER_SESSION_FIRST: u16 = 73;
+const IDM_ORDER_WEEKLY_FIRST: u16 = 74;
 const IDM_ALERT_OFF: u16 = 80;
 const IDM_ALERT_10: u16 = 81;
 const IDM_ALERT_20: u16 = 82;
@@ -252,54 +255,166 @@ fn relaunch_self() {
 /// In that case the message loop is still healthy, so ask it to restore the
 /// saved taskbar-relative position without changing the persisted tray offset.
 fn spawn_taskbar_watchdog() {
-    std::thread::spawn(move || loop {
-        std::thread::sleep(Duration::from_secs(TASKBAR_WATCH_INTERVAL_SECS));
+    std::thread::spawn(move || {
+        let mut last_taskbar_rect: Option<RECT> = None;
 
-        let snapshot = {
-            let state = lock_state();
-            state.as_ref().and_then(|s| {
-                s.taskbar_hwnd
-                    .map(|taskbar_hwnd| (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging))
-            })
-        };
-        // Only relevant once we have embedded into a taskbar at least once.
-        let Some((old, hwnd, tray_offset, dragging)) = snapshot else {
-            continue;
-        };
+        loop {
+            std::thread::sleep(Duration::from_secs(TASKBAR_WATCH_INTERVAL_SECS));
 
-        let taskbars = native_interop::find_taskbars();
-        if taskbars.is_empty() {
-            continue;
-        }
+            let snapshot = {
+                let state = lock_state();
+                state.as_ref().and_then(|s| {
+                    s.taskbar_hwnd.map(|taskbar_hwnd| {
+                        (taskbar_hwnd, s.hwnd.to_hwnd(), s.tray_offset, s.dragging)
+                    })
+                })
+            };
+            // Only relevant once we have embedded into a taskbar at least once.
+            let Some((old, hwnd, tray_offset, dragging)) = snapshot else {
+                diagnose::log("watchdog snapshot: no embedded taskbar state");
+                continue;
+            };
 
-        let Some(taskbar) = taskbars.iter().find(|taskbar| taskbar.hwnd == old) else {
-            let new = taskbars[0].hwnd;
-            diagnose::log(format!(
-                "watchdog: taskbar changed old={:?} new={:?} -> relaunching",
-                old.0, new.0
-            ));
-            relaunch_self();
-            continue;
-        };
+            let taskbars = native_interop::find_taskbars();
+            if diagnose::is_enabled() {
+                log_taskbar_debug_snapshot(hwnd, old, tray_offset, dragging, &taskbars);
+            }
+            if taskbars.is_empty() {
+                diagnose::log("watchdog: no taskbars found");
+                continue;
+            }
 
-        if dragging {
-            continue;
-        }
+            let Some(taskbar) = taskbars.iter().find(|taskbar| taskbar.hwnd == old) else {
+                let replacement = last_taskbar_rect.and_then(|last_rect| {
+                    taskbars
+                        .iter()
+                        .find(|taskbar| taskbar_rect_matches(taskbar.rect, last_rect))
+                        .copied()
+                });
 
-        let Some(actual) = native_interop::get_window_rect_safe(hwnd) else {
-            continue;
-        };
-        let expected = expected_widget_screen_rect(*taskbar, tray_offset);
-        if rect_position_differs(actual, expected, TASKBAR_POSITION_TOLERANCE_PX) {
-            diagnose::log(format!(
-                "watchdog: widget position drift actual=({}, {}) expected=({}, {}) -> repositioning",
-                actual.left, actual.top, expected.left, expected.top
-            ));
-            unsafe {
-                let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+                if let Some(replacement) = replacement {
+                    diagnose::log(format!(
+                        "watchdog: taskbar replaced at same monitor old={:?} new={:?} rect=({}, {}, {}, {}) -> relaunching",
+                        old.0,
+                        replacement.hwnd.0,
+                        replacement.rect.left,
+                        replacement.rect.top,
+                        replacement.rect.right,
+                        replacement.rect.bottom
+                    ));
+                    relaunch_self();
+                } else {
+                    diagnose::log(format!(
+                        "watchdog: stored taskbar temporarily absent old={:?}; waiting for same-monitor taskbar to return",
+                        old.0
+                    ));
+                }
+                continue;
+            };
+
+            last_taskbar_rect = Some(taskbar.rect);
+
+            if !native_interop::window_exists(hwnd) {
+                diagnose::log("watchdog: widget window was destroyed -> relaunching");
+                relaunch_self();
+                continue;
+            }
+
+            if dragging {
+                continue;
+            }
+
+            let parent_matches = native_interop::get_parent_window(hwnd) == Some(taskbar.hwnd);
+            if !parent_matches {
+                diagnose::log("watchdog: widget lost taskbar parent -> reattaching");
+                unsafe {
+                    let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+                }
+                continue;
+            }
+
+            let Some(actual) = native_interop::get_window_rect_safe(hwnd) else {
+                diagnose::log("watchdog: unable to read widget rect -> requesting recovery");
+                unsafe {
+                    let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+                }
+                continue;
+            };
+            let expected = expected_widget_screen_rect(*taskbar, tray_offset);
+            if rect_position_differs(actual, expected, TASKBAR_POSITION_TOLERANCE_PX) {
+                diagnose::log(format!(
+                    "watchdog: widget position drift actual=({}, {}) expected=({}, {}) -> repositioning",
+                    actual.left, actual.top, expected.left, expected.top
+                ));
+                unsafe {
+                    let _ = PostMessageW(hwnd, WM_APP_TASKBAR_REPOSITION, WPARAM(0), LPARAM(0));
+                }
             }
         }
     });
+}
+
+fn log_taskbar_debug_snapshot(
+    hwnd: HWND,
+    stored_taskbar: HWND,
+    tray_offset: i32,
+    dragging: bool,
+    taskbars: &[native_interop::TaskbarWindow],
+) {
+    let exists = native_interop::window_exists(hwnd);
+    let parent = native_interop::get_parent_window(hwnd);
+    let actual = native_interop::get_window_rect_safe(hwnd);
+
+    let taskbar_summary = taskbars
+        .iter()
+        .enumerate()
+        .map(|(index, taskbar)| {
+            let tray_rect = native_interop::find_child_window(taskbar.hwnd, "TrayNotifyWnd")
+                .and_then(native_interop::get_window_rect_safe);
+            format!(
+                "#{index}:hwnd={:?}:rect=({}, {}, {}, {}):tray={}",
+                taskbar.hwnd.0,
+                taskbar.rect.left,
+                taskbar.rect.top,
+                taskbar.rect.right,
+                taskbar.rect.bottom,
+                format_optional_rect(tray_rect),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" | ");
+
+    let expected = taskbars
+        .iter()
+        .find(|taskbar| taskbar.hwnd == stored_taskbar)
+        .map(|taskbar| expected_widget_screen_rect(*taskbar, tray_offset));
+
+    diagnose::log(format!(
+        "watchdog snapshot: widget={:?} exists={} parent={:?} stored_taskbar={:?} embedded={} dragging={} tray_offset={} actual={} expected={} taskbars=[{}]",
+        hwnd.0,
+        exists,
+        parent.map(|value| value.0),
+        stored_taskbar.0,
+        {
+            let state = lock_state();
+            state.as_ref().map(|s| s.embedded).unwrap_or(false)
+        },
+        dragging,
+        tray_offset,
+        format_optional_rect(actual),
+        format_optional_rect(expected),
+        taskbar_summary,
+    ));
+}
+
+fn format_optional_rect(rect: Option<RECT>) -> String {
+    rect.map(|rect| {
+        format!(
+            "({}, {}, {}, {})",
+            rect.left, rect.top, rect.right, rect.bottom
+        )
+    })
+    .unwrap_or_else(|| "none".to_string())
 }
 
 fn expected_widget_screen_rect(taskbar: native_interop::TaskbarWindow, tray_offset: i32) -> RECT {
@@ -322,6 +437,14 @@ fn expected_widget_screen_rect(taskbar: native_interop::TaskbarWindow, tray_offs
 
 fn rect_position_differs(actual: RECT, expected: RECT, tolerance: i32) -> bool {
     (actual.left - expected.left).abs() > tolerance || (actual.top - expected.top).abs() > tolerance
+}
+
+fn taskbar_rect_matches(a: RECT, b: RECT) -> bool {
+    const TOLERANCE: i32 = 8;
+    (a.left - b.left).abs() <= TOLERANCE
+        && (a.top - b.top).abs() <= TOLERANCE
+        && (a.right - b.right).abs() <= TOLERANCE
+        && (a.bottom - b.bottom).abs() <= TOLERANCE
 }
 
 fn load_embedded_app_icons() -> (HICON, HICON) {
@@ -405,6 +528,8 @@ struct SettingsFile {
     #[serde(default = "default_show_usage_window")]
     show_weekly_window: bool,
     #[serde(default)]
+    weekly_first: bool,
+    #[serde(default)]
     alert_threshold_percent: u8,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     notified_quota_windows: Vec<String>,
@@ -424,6 +549,7 @@ impl Default for SettingsFile {
             show_antigravity: false,
             show_session_window: true,
             show_weekly_window: true,
+            weekly_first: false,
             alert_threshold_percent: 0,
             notified_quota_windows: Vec::new(),
         }
@@ -551,6 +677,7 @@ fn save_state_settings() {
             show_antigravity: s.show_antigravity,
             show_session_window: s.show_session_window,
             show_weekly_window: s.show_weekly_window,
+            weekly_first: s.weekly_first,
             alert_threshold_percent: s.alert_threshold_percent,
             notified_quota_windows: s.notified_quota_windows.iter().cloned().collect(),
         });
@@ -575,15 +702,66 @@ fn service_tooltip(
     weekly_text: &str,
     show_session_window: bool,
     show_weekly_window: bool,
+    weekly_first: bool,
 ) -> String {
     let mut parts = Vec::new();
-    if show_session_window {
-        parts.push(format!("5h {session_text}"));
-    }
-    if show_weekly_window {
-        parts.push(format!("7d {weekly_text}"));
+    if weekly_first {
+        if show_weekly_window {
+            parts.push(format!("7d {weekly_text}"));
+        }
+        if show_session_window {
+            parts.push(format!("5h {session_text}"));
+        }
+    } else {
+        if show_session_window {
+            parts.push(format!("5h {session_text}"));
+        }
+        if show_weekly_window {
+            parts.push(format!("7d {weekly_text}"));
+        }
     }
     format!("{service}: {}", parts.join(" | "))
+}
+
+// Model-level fallback does not establish a 5-hour or weekly quota window.
+fn antigravity_gemini_tooltip(
+    session_text: &str,
+    weekly_text: &str,
+    show_session_window: bool,
+    show_weekly_window: bool,
+    usage: Option<&crate::models::UsageData>,
+    weekly_first: bool,
+) -> String {
+    let is_model_fallback = usage
+        .is_some_and(|usage| usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0);
+    if is_model_fallback {
+        let mut parts = Vec::new();
+        if weekly_first {
+            if show_weekly_window {
+                parts.push("7d unavailable".to_string());
+            }
+            if show_session_window {
+                parts.push(format!("model quota {session_text} (window unverified)"));
+            }
+        } else {
+            if show_session_window {
+                parts.push(format!("model quota {session_text} (window unverified)"));
+            }
+            if show_weekly_window {
+                parts.push("7d unavailable".to_string());
+            }
+        }
+        format!("AG-G: {}", parts.join(" | "))
+    } else {
+        service_tooltip(
+            "AG-G",
+            session_text,
+            weekly_text,
+            show_session_window,
+            show_weekly_window,
+            weekly_first,
+        )
+    }
 }
 
 fn claude_code_menu_label(
@@ -778,6 +956,7 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                 ));
             }
             if s.show_codex {
@@ -787,15 +966,17 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.codex_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                 ));
             }
             if s.show_antigravity {
-                services.push(service_tooltip(
-                    "AG-G",
+                services.push(antigravity_gemini_tooltip(
                     &s.antigravity_gemini_session_text,
                     &s.antigravity_gemini_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.data.as_ref().and_then(|data| data.antigravity.as_ref()),
+                    s.weekly_first,
                 ));
                 services.push(service_tooltip(
                     "AG-C",
@@ -803,6 +984,7 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     &s.antigravity_claude_weekly_text,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                 ));
             }
             Some(tray_icon::TrayIconData {
@@ -882,7 +1064,20 @@ fn attach_to_taskbar(hwnd: HWND, requested_index: usize) -> bool {
         native_interop::unhook_win_event(hook);
     }
 
+    diagnose::log(format!(
+        "attach: before embed widget={:?} parent={:?} rect={}",
+        hwnd.0,
+        native_interop::get_parent_window(hwnd).map(|value| value.0),
+        format_optional_rect(native_interop::get_window_rect_safe(hwnd))
+    ));
     native_interop::embed_in_taskbar(hwnd, taskbar.hwnd);
+    diagnose::log(format!(
+        "attach: after embed widget={:?} parent={:?} target_taskbar={:?} rect={}",
+        hwnd.0,
+        native_interop::get_parent_window(hwnd).map(|value| value.0),
+        taskbar.hwnd.0,
+        format_optional_rect(native_interop::get_window_rect_safe(hwnd))
+    ));
 
     let tray_notify = native_interop::find_child_window(taskbar.hwnd, "TrayNotifyWnd");
     if tray_notify.is_some() {
@@ -1842,6 +2037,7 @@ pub fn run() {
                 show_antigravity: settings.show_antigravity,
                 show_session_window: settings.show_session_window,
                 show_weekly_window: settings.show_weekly_window,
+                weekly_first: settings.weekly_first,
                 alert_threshold_percent: settings.alert_threshold_percent,
                 notified_quota_windows: settings.notified_quota_windows.into_iter().collect(),
                 data: None,
@@ -1976,6 +2172,7 @@ fn render_layered() {
         show_antigravity,
         show_session_window,
         show_weekly_window,
+        weekly_first,
     ) = {
         let state = lock_state();
         match state.as_ref() {
@@ -2006,6 +2203,7 @@ fn render_layered() {
                 s.show_antigravity,
                 s.show_session_window,
                 s.show_weekly_window,
+                s.weekly_first,
             ),
             None => return,
         }
@@ -2109,6 +2307,7 @@ fn render_layered() {
             show_antigravity,
             show_session_window,
             show_weekly_window,
+            weekly_first,
             &codex_accent,
             &antigravity_gemini_accent,
             &antigravity_claude_accent,
@@ -2194,6 +2393,7 @@ fn paint_content(
     show_antigravity: bool,
     show_session_window: bool,
     show_weekly_window: bool,
+    weekly_first: bool,
     codex_accent: &Color,
     antigravity_gemini_accent: &Color,
     antigravity_claude_accent: &Color,
@@ -2304,7 +2504,11 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_weekly_window {
-                    row1_y
+                    if weekly_first {
+                        row2_y
+                    } else {
+                        row1_y
+                    }
                 } else {
                     single_row_y
                 },
@@ -2336,7 +2540,11 @@ fn paint_content(
                 hdc,
                 content_x,
                 if show_session_window {
-                    row2_y
+                    if weekly_first {
+                        row1_y
+                    } else {
+                        row2_y
+                    }
                 } else {
                     single_row_y
                 },
@@ -2916,6 +3124,22 @@ unsafe extern "system" fn wnd_proc(
         }
         WM_ERASEBKGND => LRESULT(1),
         WM_APP_TASKBAR_REPOSITION => {
+            let (taskbar_hwnd, taskbar_index) = {
+                let state = lock_state();
+                state
+                    .as_ref()
+                    .map(|s| (s.taskbar_hwnd, s.taskbar_index))
+                    .unwrap_or((None, 0))
+            };
+
+            let parent_matches = taskbar_hwnd.is_some_and(|taskbar_hwnd| {
+                native_interop::get_parent_window(hwnd) == Some(taskbar_hwnd)
+            });
+            if !parent_matches {
+                diagnose::log("recovery: reattaching widget to taskbar");
+                let _ = attach_to_taskbar(hwnd, taskbar_index);
+            }
+
             position_at_taskbar();
             render_layered();
             LRESULT(0)
@@ -3289,6 +3513,17 @@ unsafe extern "system" fn wnd_proc(
                     // Reset the poll timer with the new interval
                     SetTimer(hwnd, TIMER_POLL, new_interval, None);
                 }
+                IDM_ORDER_SESSION_FIRST | IDM_ORDER_WEEKLY_FIRST => {
+                    {
+                        let mut state = lock_state();
+                        if let Some(s) = state.as_mut() {
+                            s.weekly_first = id == IDM_ORDER_WEEKLY_FIRST;
+                        }
+                    }
+                    save_state_settings();
+                    render_layered();
+                    sync_tray_icons(hwnd);
+                }
                 IDM_SHOW_SESSION_WINDOW | IDM_SHOW_WEEKLY_WINDOW => {
                     {
                         let mut state = lock_state();
@@ -3474,6 +3709,7 @@ fn show_context_menu(hwnd: HWND) {
             show_antigravity,
             show_session_window,
             show_weekly_window,
+            weekly_first,
             alert_threshold_percent,
         ) = {
             let state = lock_state();
@@ -3492,6 +3728,7 @@ fn show_context_menu(hwnd: HWND) {
                     s.show_antigravity,
                     s.show_session_window,
                     s.show_weekly_window,
+                    s.weekly_first,
                     s.alert_threshold_percent,
                 ),
                 None => (
@@ -3508,6 +3745,7 @@ fn show_context_menu(hwnd: HWND) {
                     false,
                     true,
                     true,
+                    false,
                     0,
                 ),
             }
@@ -3641,6 +3879,24 @@ fn show_context_menu(hwnd: HWND) {
             IDM_SHOW_WEEKLY_WINDOW as usize,
             PCWSTR::from_raw(weekly_label.as_ptr()),
         );
+        let _ = AppendMenuW(usage_menu, MF_SEPARATOR, 0, PCWSTR::null());
+        for (id, is_weekly_first, label) in [
+            (IDM_ORDER_SESSION_FIRST, false, "5h / 7d"),
+            (IDM_ORDER_WEEKLY_FIRST, true, "7d / 5h"),
+        ] {
+            let label_str = native_interop::wide_str(label);
+            let flags = if weekly_first == is_weekly_first {
+                MF_CHECKED
+            } else {
+                MENU_ITEM_FLAGS(0)
+            };
+            let _ = AppendMenuW(
+                usage_menu,
+                flags,
+                id as usize,
+                PCWSTR::from_raw(label_str.as_ptr()),
+            );
+        }
         let usage_label = native_interop::wide_str(if language == LanguageId::SimplifiedChinese {
             "显示用量"
         } else {
@@ -3879,6 +4135,7 @@ fn paint(hdc: HDC, hwnd: HWND) {
         show_antigravity,
         show_session_window,
         show_weekly_window,
+        weekly_first,
     ) = {
         let state = lock_state();
         match state.as_ref() {
@@ -3907,6 +4164,7 @@ fn paint(hdc: HDC, hwnd: HWND) {
                 s.show_antigravity,
                 s.show_session_window,
                 s.show_weekly_window,
+                s.weekly_first,
             ),
             None => return,
         }
@@ -3978,6 +4236,7 @@ fn paint(hdc: HDC, hwnd: HWND) {
             show_antigravity,
             show_session_window,
             show_weekly_window,
+            weekly_first,
             &codex_accent,
             &antigravity_gemini_accent,
             &antigravity_claude_accent,
@@ -4291,14 +4550,48 @@ mod tests {
                 "剩余13% 19:04重置",
                 "剩余86% 07/18重置",
                 true,
-                true
+                true,
+                false
             ),
             "Codex: 5h 剩余13% 19:04重置 | 7d 剩余86% 07/18重置"
         );
         assert_eq!(
-            service_tooltip("Claude Code", "13%", "86%", false, true),
+            service_tooltip("Claude Code", "13%", "86%", false, true, false),
             "Claude Code: 7d 86%"
         );
+    }
+
+    #[test]
+    fn gemini_model_fallback_tooltip_does_not_claim_five_hour_or_weekly_quota() {
+        let usage = crate::models::UsageData {
+            session: crate::models::UsageSection {
+                percentage: 25.0,
+                resets_at: None,
+            },
+            weekly: crate::models::UsageSection::default(),
+        };
+        assert_eq!(
+            antigravity_gemini_tooltip("75% left", "--", true, true, Some(&usage), false),
+            "AG-G: model quota 75% left (window unverified) | 7d unavailable"
+        );
+        assert_eq!(
+            antigravity_gemini_tooltip("75% left", "40% left", true, true, None, false),
+            "AG-G: 5h 75% left | 7d 40% left"
+        );
+    }
+
+    #[test]
+    fn weekly_first_tooltip_order_is_selectable() {
+        assert_eq!(
+            service_tooltip("AG-C", "80%", "70%", true, true, true),
+            "AG-C: 7d 70% | 5h 80%"
+        );
+    }
+
+    #[test]
+    fn legacy_settings_default_to_session_first() {
+        let settings: SettingsFile = serde_json::from_str("{}").expect("legacy settings");
+        assert!(!settings.weekly_first);
     }
 
     #[test]
