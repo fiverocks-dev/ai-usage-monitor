@@ -65,7 +65,9 @@ foreach ($proc in $processes) {
                         Write-Output ("Local response nested: field={0} recognized_children={1}" -f $field, ($nestedKnown -join ','))
                     }
                 }
-                $groups = @($json.groups | Where-Object { $null -ne $_ })
+                # The language server wraps the quota payload in "response".
+                $payload = if ($null -ne $json.response) { $json.response } else { $json }
+                $groups = @($payload.groups | Where-Object { $null -ne $_ })
                 Write-Output "Local quota summary available: group_count=$($groups.Count)"
                 foreach ($group in $groups) {
                     $name = [string]$group.displayName
