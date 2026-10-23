@@ -1,5 +1,5 @@
 # Read-only Antigravity local quota diagnostic. Run in an interactive Windows desktop session.
-# Prints only quota group names and percentages; never prints CSRF tokens, account IDs or raw responses.
+# Prints quota group names, percentages, and bucket reset timestamps; never prints CSRF tokens, account IDs or raw responses.
 param([int]$TimeoutSeconds = 3)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Net.Http
@@ -96,8 +96,19 @@ foreach ($proc in $processes) {
                         $numericFieldNames = @($bucket.PSObject.Properties | Where-Object {
                             $_.Value -is [ValueType] -and $_.Name -match '(?i)fraction|limit|quota|remaining|used'
                         } | ForEach-Object { $_.Name } | Sort-Object)
-                        $reset = if ($null -ne $bucket.resetTime) { 'present' } else { 'absent' }
-                        Write-Output ("bucket: group={0} id={1} name={2} window={3} remaining_pct={4} fraction_present={5} reset_time={6} numeric_fields={7}" -f
+                        $reset = 'absent'
+                        if ($null -ne $bucket.resetTime) {
+                            try {
+                                $resetUtc = [DateTimeOffset]::Parse(
+                                    [string]$bucket.resetTime,
+                                    [Globalization.CultureInfo]::InvariantCulture
+                                ).ToUniversalTime()
+                                $reset = $resetUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
+                            } catch {
+                                $reset = 'present-unparseable'
+                            }
+                        }
+                        Write-Output ("bucket: group={0} id={1} name={2} window={3} remaining_pct={4} fraction_present={5} reset_utc={6} numeric_fields={7}" -f
                             $name,$bucketId,$bucketName,([string]$bucket.window),$pct,($null -ne $fractionProperty -and $null -ne $fraction),$reset,($numericFieldNames -join ','))
                     }
                 }
