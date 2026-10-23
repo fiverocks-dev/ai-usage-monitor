@@ -67,7 +67,15 @@ foreach ($proc in $processes) {
                 }
                 # The language server wraps the quota payload in "response".
                 $payload = if ($null -ne $json.response) { $json.response } else { $json }
-                $groups = @($payload.groups | Where-Object { $null -ne $_ })
+                # Inspect wrapper metadata only; never print unknown field values.
+                $payloadFields = @($payload.PSObject.Properties.Name | Sort-Object)
+                $knownPayloadFields = @($payloadFields | Where-Object { $_ -in @('groups','quotaGroups','buckets','quotaSummary','userQuotaSummary','status','error') })
+                Write-Output ("Local payload: field_count={0} known_fields={1}" -f $payloadFields.Count, ($knownPayloadFields -join ','))
+                $rawGroups = $payload.groups
+                $groupKind = if ($null -eq $rawGroups) { 'null' } elseif ($rawGroups -is [array]) { 'array' } elseif ($rawGroups -is [pscustomobject]) { 'object' } else { 'scalar' }
+                $groupCount = if ($rawGroups -is [array]) { $rawGroups.Count } elseif ($rawGroups -is [pscustomobject]) { $rawGroups.PSObject.Properties.Count } else { 0 }
+                Write-Output ("Local payload groups: kind={0} count={1}" -f $groupKind, $groupCount)
+                $groups = @($rawGroups | Where-Object { $null -ne $_ })
                 Write-Output "Local quota summary available: group_count=$($groups.Count)"
                 foreach ($group in $groups) {
                     $name = [string]$group.displayName
