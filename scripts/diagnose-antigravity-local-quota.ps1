@@ -41,7 +41,30 @@ foreach ($proc in $processes) {
                 $req.Content = [System.Net.Http.StringContent]::new('{}',[Text.Encoding]::UTF8,'application/json')
                 $resp = $client.SendAsync($req).GetAwaiter().GetResult()
                 if (-not $resp.IsSuccessStatusCode) { continue }
-                $json = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+                $bodyText = $resp.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+                try {
+                    $json = $bodyText | ConvertFrom-Json
+                } catch {
+                    Write-Output 'Local quota endpoint responded successfully, but the response was not JSON.'
+                    $found = $true
+                    break
+                }
+
+                # Only print schema metadata, never values from unknown fields.
+                $topFields = @($json.PSObject.Properties | ForEach-Object { $_.Name } | Sort-Object)
+                $knownTopFields = @('groups', 'quotaGroups', 'quotaSummary', 'userQuotaSummary', 'result', 'response')
+                $safeFields = @($topFields | Where-Object { $_ -in $knownTopFields })
+                Write-Output ("Local response: top_level_fields={0} known_fields={1}" -f $topFields.Count, ($safeFields -join ','))
+                foreach ($field in $safeFields) {
+                    $value = $json.$field
+                    $kind = if ($null -eq $value) { 'null' } elseif ($value -is [array]) { 'array' } elseif ($value -is [pscustomobject]) { 'object' } else { 'scalar' }
+                    $count = if ($value -is [array]) { $value.Count } else { 'n/a' }
+                    Write-Output ("Local response field: name={0} kind={1} count={2}" -f $field, $kind, $count)
+                    if ($value -is [pscustomobject]) {
+                        $nestedKnown = @($value.PSObject.Properties.Name | Where-Object { $_ -in @('groups', 'quotaGroups', 'buckets') })
+                        Write-Output ("Local response nested: field={0} recognized_children={1}" -f $field, ($nestedKnown -join ','))
+                    }
+                }
                 $groups = @($json.groups | Where-Object { $null -ne $_ })
                 Write-Output "Local quota summary available: group_count=$($groups.Count)"
                 foreach ($group in $groups) {
