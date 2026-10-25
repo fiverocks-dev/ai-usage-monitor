@@ -8,6 +8,8 @@ import android.content.Context
 /** Explicit opt-in diagnostic service; observes only Chrome's visible usage page. */
 class QuotaAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (!getSharedPreferences("quota_diagnostics", Context.MODE_PRIVATE)
+                .getBoolean("a11y_armed", false)) return
         if (event?.packageName?.toString() != "com.android.chrome") return
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
             event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
