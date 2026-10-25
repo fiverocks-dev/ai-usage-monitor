@@ -4,4 +4,5 @@
   <string name="mock_notice">샘플 데이터 · 실제 계정에 연결되지 않음</string>
   <string name="refresh_mock">Mock 갱신</string>
   <string name="last_updated">마지막 갱신</string>
+  <string name="accessibility_test_description">사용자의 명시적 선택에 따라 Chrome 화면의 사용량 관련 텍스트 후보만 로컬에서 진단합니다. 비밀번호나 토큰을 수집하지 않으며 자동 백그라운드 조회는 지원하지 않습니다.</string>
 </resources>
