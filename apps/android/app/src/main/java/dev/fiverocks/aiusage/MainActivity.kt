@@ -40,6 +40,10 @@ class MainActivity : ComponentActivity() {
             var dataSource by remember { mutableStateOf(WidgetCache.source(this@MainActivity)) }
             var browserStatus by remember { mutableStateOf("") }
             var experimentResult by remember { mutableStateOf("세 가지 방법 모두 아직 미검증") }
+            var a11yArmed by remember {
+                mutableStateOf(getSharedPreferences("quota_diagnostics", MODE_PRIVATE)
+                    .getBoolean("a11y_armed", false))
+            }
             val screenshotPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
                 if (uri != null) QuotaOcr.read(this@MainActivity, uri) { experimentResult = "OCR 결과\n$it" }
             }
@@ -178,6 +182,14 @@ class MainActivity : ComponentActivity() {
                         Text("3가지 화면 읽기 실험", style = MaterialTheme.typography.titleMedium)
                         Text("테스트 전용 · 계정 토큰은 읽지 않음 · 실제 잔여율 자동 확정 기능 아님")
                         Button(onClick = { screenshotPicker.launch("image/*") }) { Text("1. 스크린샷 OCR 테스트") }
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(checked = a11yArmed, onCheckedChange = { enabled ->
+                                a11yArmed = enabled
+                                getSharedPreferences("quota_diagnostics", MODE_PRIVATE)
+                                    .edit().putBoolean("a11y_armed", enabled).apply()
+                            })
+                            Text("Chrome 화면 접근성 진단 허용 (테스트 후 해제)")
+                        }
                         OutlinedButton(onClick = {
                             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         }) { Text("2. 접근성 권한 설정 열기") }
