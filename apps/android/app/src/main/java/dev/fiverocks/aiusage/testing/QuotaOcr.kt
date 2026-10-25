@@ -4,7 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 
 /** Processes a user-selected screenshot entirely in the Android app. */
 object QuotaOcr {
@@ -14,7 +14,7 @@ object QuotaOcr {
             onResult("이미지를 열 수 없습니다")
             return
         }
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        val recognizer = TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
         recognizer.process(image)
             .addOnSuccessListener { onResult(QuotaTextExtractor.summary(it.text)) }
             .addOnFailureListener { onResult("OCR 실패: 이미지 형식을 확인하세요") }
