@@ -4,6 +4,9 @@ import android.os.Bundle
 import android.content.Intent
 import android.content.ActivityNotFoundException
 import android.net.Uri
+import android.provider.Settings
+import dev.fiverocks.aiusage.testing.QuotaOcr
+import dev.fiverocks.aiusage.testing.QuotaWebViewActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
@@ -36,6 +39,10 @@ class MainActivity : ComponentActivity() {
             var widgetSyncStatus by remember { mutableStateOf("위젯 갱신 대기") }
             var dataSource by remember { mutableStateOf(WidgetCache.source(this@MainActivity)) }
             var browserStatus by remember { mutableStateOf("") }
+            var experimentResult by remember { mutableStateOf("세 가지 방법 모두 아직 미검증") }
+            val screenshotPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) QuotaOcr.read(this@MainActivity, uri) { experimentResult = "OCR 결과\n$it" }
+            }
             var codexFiveHour by remember { mutableStateOf("") }
             var codexWeekly by remember { mutableStateOf("") }
             var manualStatus by remember { mutableStateOf("") }
@@ -167,6 +174,21 @@ class MainActivity : ComponentActivity() {
                         )
                         Button(onClick = { saveManualCodex() }) { Text("Codex 수동값 위젯에 적용") }
                         if (manualStatus.isNotEmpty()) Text(manualStatus, style = MaterialTheme.typography.bodySmall)
+                        Spacer(Modifier.height(12.dp))
+                        Text("3가지 화면 읽기 실험", style = MaterialTheme.typography.titleMedium)
+                        Text("테스트 전용 · 계정 토큰은 읽지 않음 · 실제 잔여율 자동 확정 기능 아님")
+                        Button(onClick = { screenshotPicker.launch("image/*") }) { Text("1. 스크린샷 OCR 테스트") }
+                        OutlinedButton(onClick = {
+                            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                        }) { Text("2. 접근성 권한 설정 열기") }
+                        OutlinedButton(onClick = {
+                            experimentResult = getSharedPreferences("quota_diagnostics", MODE_PRIVATE)
+                                .getString("a11y_result", "아직 Chrome 사용량 화면 텍스트가 수집되지 않았습니다") ?: ""
+                        }) { Text("접근성 진단 결과 보기") }
+                        OutlinedButton(onClick = {
+                            startActivity(Intent(this@MainActivity, QuotaWebViewActivity::class.java))
+                        }) { Text("3. WebView 로그인/화면 테스트") }
+                        Text(experimentResult.take(1600), style = MaterialTheme.typography.bodySmall)
                         Spacer(Modifier.height(12.dp))
                         Text("실제 사용량 확인 (휴대폰 브라우저)")
                         Text("사용자가 확인한 Codex 사용량 URL을 브라우저로 엽니다. 로그인 상태와 사용량 표시 여부는 브라우저에서 확인하세요. 앱·위젯은 자동으로 읽지 않습니다.", style = MaterialTheme.typography.bodySmall)
