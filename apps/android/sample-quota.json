@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "snapshots": [
+    {
+      "provider": "CLAUDE_CODE",
+      "windowId": "5h",
+      "remainingFraction": 0.42,
+      "resetAtEpochSeconds": 1792512000,
+      "fetchedAtEpochSeconds": 1792508400,
+      "status": "FRESH"
+    },
+    {
+      "provider": "CODEX",
+      "windowId": "5h",
+      "remainingFraction": 0.0,
+      "resetAtEpochSeconds": 1792512000,
+      "fetchedAtEpochSeconds": 1792508400,
+      "status": "FRESH"
+    },
+    {
+      "provider": "ANTIGRAVITY_GEMINI",
+      "windowId": "model",
+      "remainingFraction": null,
+      "resetAtEpochSeconds": null,
+      "fetchedAtEpochSeconds": null,
+      "status": "UNSUPPORTED"
+    },
+    {
+      "provider": "ANTIGRAVITY_CLAUDE",
+      "windowId": "model",
+      "remainingFraction": null,
+      "resetAtEpochSeconds": null,
+      "fetchedAtEpochSeconds": null,
+      "status": "UNSUPPORTED"
+    }
+  ]
+}
