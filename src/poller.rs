@@ -308,6 +308,12 @@ fn poll_codex() -> Result<UsageData, PollError> {
 }
 
 fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
+    // Prefer the CLI's account-scoped quota groups; it exposes the same
+    // remaining_fraction and disabled state as the Antigravity Usage screen.
+    if let Some(data) = fetch_antigravity_cli_usage() {
+        return Ok(data);
+    }
+    diagnose::log("Antigravity CLI quota unavailable; using remote API fallback");
     let creds = match read_antigravity_credentials() {
         Some(creds) => creds,
         None => {
@@ -315,8 +321,90 @@ fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>), PollErro
             return Err(PollError::NoCredentials);
         }
     };
-
     fetch_antigravity_usage(&creds.access_token)
+}
+
+fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>)> {
+    let cli_path = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .map(|path| path.join("agy").join("bin").join("agy.exe"))
+        .filter(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from("agy.exe"));
+    let output = run_with_timeout(
+        Command::new(cli_path)
+            .args(["-p", "/usage", "--output-format", "json"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null()),
+        Duration::from_secs(10),
+    )?;
+    if !output.status.success() || output.stdout.len() > 262_144 {
+        diagnose::log("Antigravity CLI quota command failed or exceeded output limit");
+        return None;
+    }
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+    let groups = result.pointer("/command/data/groups")?.as_array()?;
+    let mut gemini = None;
+    let mut claude = None;
+    for group in groups {
+        let name = group.get("name").and_then(|v| v.as_str()).unwrap_or_default();
+        let Some(buckets) = group.get("buckets").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        if name.to_ascii_lowercase().contains("argon") {
+            for bucket in buckets {
+                if bucket.get("window").and_then(|v| v.as_str()) == Some("weekly") {
+                    let remaining = bucket.get("remaining_fraction").and_then(|v| v.as_f64());
+                    diagnose::log(format!(
+                        "Antigravity CLI Argon weekly remaining_pct={:?}",
+                        remaining.map(|r| r.clamp(0.0, 1.0) * 100.0)
+                    ));
+                }
+            }
+            continue;
+        }
+        let mut usage = UsageData::default();
+        let mut found = false;
+        for bucket in buckets {
+            let window = bucket.get("window").and_then(|v| v.as_str());
+            let disabled = bucket.get("disabled").and_then(|v| v.as_bool()) == Some(true);
+            if disabled {
+                diagnose::log(format!("Antigravity CLI disabled quota window: group={name} window={window:?}"));
+                continue;
+            }
+            let Some(remaining) = bucket.get("remaining_fraction").and_then(|v| v.as_f64()) else {
+                continue;
+            };
+            if !remaining.is_finite() {
+                continue;
+            }
+            let section = UsageSection {
+                percentage: (1.0 - remaining.clamp(0.0, 1.0)) * 100.0,
+                resets_at: parse_iso8601(bucket.get("reset_time").and_then(|v| v.as_str())),
+            };
+            match window {
+                Some("5h") => { usage.session = section; found = true; }
+                Some("weekly") => { usage.weekly = section; found = true; }
+                _ => {}
+            }
+        }
+        if !found {
+            continue;
+        }
+        match name {
+            "Gemini Models" => gemini = Some(usage),
+            "Claude and GPT models" => claude = Some(usage),
+            _ => {}
+        }
+    }
+    if gemini.is_some() && claude.is_some() {
+        diagnose::log("Antigravity CLI quota groups parsed successfully");
+        Some((gemini, claude))
+    } else {
+        diagnose::log("Antigravity CLI quota groups incomplete; using API fallback");
+        None
+    }
 }
 
 fn select_unexpired_credentials(mut creds: Credentials) -> Result<Credentials, PollError> {
