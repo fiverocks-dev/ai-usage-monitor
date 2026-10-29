@@ -89,18 +89,22 @@ foreach ($proc in $processes) {
                         $bucketId = -join ($bucketId.ToCharArray() | Where-Object { [int]$_ -ge 32 } | Select-Object -First 80)
                         $bucketName = -join ($bucketName.ToCharArray() | Where-Object { [int]$_ -ge 32 } | Select-Object -First 80)
                         $fractionProperty = $bucket.PSObject.Properties['remainingFraction']
+                        if ($null -eq $fractionProperty) { $fractionProperty = $bucket.PSObject.Properties['remaining_fraction'] }
                         $fraction = if ($null -ne $fractionProperty) { $fractionProperty.Value } else { $null }
-                        $pct = if ($null -ne $fraction -and $fraction -is [ValueType]) {
+                        $disabledProperty = $bucket.PSObject.Properties['disabled']
+                        $disabled = ($null -ne $disabledProperty -and $disabledProperty.Value -eq $true)
+                        $pct = if ($disabled) { 'disabled' } elseif ($null -ne $fraction -and $fraction -is [ValueType]) {
                             '{0:N2}' -f ([Math]::Max(0,[Math]::Min(1,[double]$fraction))*100)
                         } else { 'unknown' }
                         $numericFieldNames = @($bucket.PSObject.Properties | Where-Object {
                             $_.Value -is [ValueType] -and $_.Name -match '(?i)fraction|limit|quota|remaining|used'
                         } | ForEach-Object { $_.Name } | Sort-Object)
                         $reset = 'absent'
-                        if ($null -ne $bucket.resetTime) {
+                        $resetValue = if ($null -ne $bucket.resetTime) { $bucket.resetTime } else { $bucket.reset_time }
+                        if ($null -ne $resetValue) {
                             try {
                                 $resetUtc = [DateTimeOffset]::Parse(
-                                    [string]$bucket.resetTime,
+                                    [string]$resetValue,
                                     [Globalization.CultureInfo]::InvariantCulture
                                 ).ToUniversalTime()
                                 $reset = $resetUtc.ToString('yyyy-MM-ddTHH:mm:ssZ')
@@ -108,8 +112,8 @@ foreach ($proc in $processes) {
                                 $reset = 'present-unparseable'
                             }
                         }
-                        Write-Output ("bucket: group={0} id={1} name={2} window={3} remaining_pct={4} fraction_present={5} reset_utc={6} numeric_fields={7}" -f
-                            $name,$bucketId,$bucketName,([string]$bucket.window),$pct,($null -ne $fractionProperty -and $null -ne $fraction),$reset,($numericFieldNames -join ','))
+                        Write-Output ("bucket: group={0} id={1} name={2} window={3} remaining_pct={4} disabled={5} fraction_field={6} reset_utc={7} numeric_fields={8}" -f
+                            $name,$bucketId,$bucketName,([string]$bucket.window),$pct,$disabled, $(if ($null -ne $fractionProperty) { $fractionProperty.Name } else { 'absent' }),$reset,($numericFieldNames -join ','))
                     }
                 }
                 $found = $true
