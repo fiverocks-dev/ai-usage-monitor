@@ -225,7 +225,7 @@ fn poll_with(
     show_antigravity: bool,
     mut poll_claude_code: impl FnMut() -> Result<UsageData, PollError>,
     mut poll_codex: impl FnMut() -> Result<UsageData, PollError>,
-    mut poll_antigravity: impl FnMut() -> Result<(Option<UsageData>, Option<UsageData>), PollError>,
+    mut poll_antigravity: impl FnMut() -> Result<(Option<UsageData>, Option<UsageData>, Option<UsageData>), PollError>,
 ) -> Result<AppUsageData, PollError> {
     let mut data = AppUsageData::default();
     let mut first_error = None;
@@ -257,9 +257,10 @@ fn poll_with(
 
     if show_antigravity {
         match poll_antigravity() {
-            Ok((gemini, claude)) => {
+            Ok((gemini, claude, argon)) => {
                 data.antigravity = gemini;
                 data.antigravity_claude = claude;
+                data.antigravity_argon = argon;
             }
             Err(error) => {
                 if active_provider_count > 1 {
@@ -274,6 +275,7 @@ fn poll_with(
         && data.codex.is_none()
         && data.antigravity.is_none()
         && data.antigravity_claude.is_none()
+        && data.antigravity_argon.is_none()
     {
         Err(first_error.unwrap_or(PollError::RequestFailed))
     } else {
@@ -307,7 +309,7 @@ fn poll_codex() -> Result<UsageData, PollError> {
     fetch_codex_usage(&creds.access_token, creds.account_id.as_deref())
 }
 
-fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>), PollError> {
+fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>, Option<UsageData>), PollError> {
     // Prefer the CLI's account-scoped quota groups; it exposes the same
     // remaining_fraction and disabled state as the Antigravity Usage screen.
     if let Some(data) = fetch_antigravity_cli_usage() {
@@ -321,10 +323,10 @@ fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>), PollErro
             return Err(PollError::NoCredentials);
         }
     };
-    fetch_antigravity_usage(&creds.access_token)
+    fetch_antigravity_usage(&creds.access_token).map(|(gemini, claude)| (gemini, claude, None))
 }
 
-fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>)> {
+fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>, Option<UsageData>)> {
     let cli_path = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .map(|path| path.join("agy").join("bin").join("agy.exe"))
@@ -349,10 +351,11 @@ fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>
 
 fn parse_antigravity_cli_usage(
     result: &serde_json::Value,
-) -> Option<(Option<UsageData>, Option<UsageData>)> {
+) -> Option<(Option<UsageData>, Option<UsageData>, Option<UsageData>)> {
     let groups = result.pointer("/command/data/groups")?.as_array()?;
     let mut gemini = None;
     let mut claude = None;
+    let mut argon = None;
     for group in groups {
         let name = group
             .get("name")
@@ -363,12 +366,26 @@ fn parse_antigravity_cli_usage(
         };
         if name.to_ascii_lowercase().contains("argon") {
             for bucket in buckets {
-                if bucket.get("window").and_then(|v| v.as_str()) == Some("weekly") {
-                    let remaining = bucket.get("remaining_fraction").and_then(|v| v.as_f64());
+                if bucket.get("window").and_then(|v| v.as_str()) != Some("weekly")
+                    || bucket.get("disabled").and_then(|v| v.as_bool()) == Some(true)
+                {
+                    continue;
+                }
+                if let Some(remaining) = bucket
+                    .get("remaining_fraction")
+                    .and_then(|v| v.as_f64())
+                    .filter(|value| value.is_finite())
+                {
+                    let mut usage = UsageData::default();
+                    usage.weekly = UsageSection {
+                        percentage: (1.0 - remaining.clamp(0.0, 1.0)) * 100.0,
+                        resets_at: parse_iso8601(bucket.get("reset_time").and_then(|v| v.as_str())),
+                    };
                     diagnose::log(format!(
-                        "Antigravity CLI Argon weekly remaining_pct={:?}",
-                        remaining.map(|r| r.clamp(0.0, 1.0) * 100.0)
+                        "Antigravity CLI Argon weekly remaining_pct={:.2}",
+                        remaining.clamp(0.0, 1.0) * 100.0
                     ));
+                    argon = Some(usage);
                 }
             }
             continue;
@@ -421,7 +438,7 @@ fn parse_antigravity_cli_usage(
     }
     if gemini.is_some() && claude.is_some() {
         diagnose::log("Antigravity CLI quota groups parsed successfully");
-        Some((gemini, claude))
+        Some((gemini, claude, argon))
     } else {
         diagnose::log("Antigravity CLI quota groups incomplete; using API fallback");
         None
@@ -1804,7 +1821,8 @@ mod tests {
                 ]}
             ]}}
         });
-        let (gemini, claude) = parse_antigravity_cli_usage(&response).expect("quota groups");
+        let (gemini, claude, argon) =
+            parse_antigravity_cli_usage(&response).expect("quota groups");
         let gemini = gemini.expect("Gemini quota");
         let claude = claude.expect("Claude quota");
         assert!(
@@ -1815,6 +1833,10 @@ mod tests {
         );
         assert_eq!(remaining_percentage(claude.weekly.percentage), 0.0);
         assert!(claude.session_disabled);
+        let argon = argon.expect("Argon quota");
+        assert!(
+            (remaining_percentage(argon.weekly.percentage) - 18.730413913726807).abs() < 0.001
+        );
     }
 
     #[test]
