@@ -376,6 +376,10 @@ fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>
                 diagnose::log(format!(
                     "Antigravity CLI disabled quota window: group={name} window={window:?}"
                 ));
+                if window == Some("5h") {
+                    usage.session_disabled = true;
+                    found = true;
+                }
                 continue;
             }
             let Some(remaining) = bucket.get("remaining_fraction").and_then(|v| v.as_f64()) else {
@@ -883,6 +887,7 @@ fn fetch_antigravity_usage_from_endpoint(
                             session.map(|session| UsageData {
                                 session,
                                 weekly: UsageSection::default(),
+                                session_disabled: false,
                             })
                         };
                         gemini = gemini.or_else(|| to_usage(model_gemini));
@@ -912,6 +917,7 @@ fn fetch_antigravity_usage_from_endpoint(
         session.map(|session| UsageData {
             session,
             weekly: UsageSection::default(),
+            session_disabled: false,
         })
     };
 
@@ -1771,6 +1777,7 @@ mod tests {
                 resets_at: None,
             },
             weekly: UsageSection::default(),
+            session_disabled: false,
         }
     }
 
