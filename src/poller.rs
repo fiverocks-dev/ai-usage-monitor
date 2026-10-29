@@ -1807,8 +1807,12 @@ mod tests {
         let (gemini, claude) = parse_antigravity_cli_usage(&response).expect("quota groups");
         let gemini = gemini.expect("Gemini quota");
         let claude = claude.expect("Claude quota");
-        assert!((remaining_percentage(gemini.weekly.percentage) - 99.50856566429138).abs() < 0.001);
-        assert!((remaining_percentage(gemini.session.percentage) - 99.89055395126343).abs() < 0.001);
+        assert!(
+            (remaining_percentage(gemini.weekly.percentage) - 99.50856566429138).abs() < 0.001
+        );
+        assert!(
+            (remaining_percentage(gemini.session.percentage) - 99.89055395126343).abs() < 0.001
+        );
         assert_eq!(remaining_percentage(claude.weekly.percentage), 0.0);
         assert!(claude.session_disabled);
     }
