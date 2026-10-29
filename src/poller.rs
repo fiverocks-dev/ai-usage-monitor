@@ -344,6 +344,12 @@ fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>
         return None;
     }
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+    parse_antigravity_cli_usage(&result)
+}
+
+fn parse_antigravity_cli_usage(
+    result: &serde_json::Value,
+) -> Option<(Option<UsageData>, Option<UsageData>)> {
     let groups = result.pointer("/command/data/groups")?.as_array()?;
     let mut gemini = None;
     let mut claude = None;
@@ -1779,6 +1785,32 @@ mod tests {
             weekly: UsageSection::default(),
             session_disabled: false,
         }
+    }
+
+    #[test]
+    fn agy_cli_quota_parses_fractions_and_disabled_windows() {
+        let response = serde_json::json!({
+            "command": {"data": {"groups": [
+                {"name": "Gemini Models", "buckets": [
+                    {"window": "weekly", "remaining_fraction": 0.9950856566429138},
+                    {"window": "5h", "remaining_fraction": 0.9989055395126343}
+                ]},
+                {"name": "Claude and GPT models", "buckets": [
+                    {"window": "weekly", "remaining_fraction": 0.0},
+                    {"window": "5h", "disabled": true, "remaining_fraction": 0.6122391819953918}
+                ]},
+                {"name": "Gemini 4 Argon", "buckets": [
+                    {"window": "weekly", "remaining_fraction": 0.18730413913726807}
+                ]}
+            ]}}
+        });
+        let (gemini, claude) = parse_antigravity_cli_usage(&response).expect("quota groups");
+        let gemini = gemini.expect("Gemini quota");
+        let claude = claude.expect("Claude quota");
+        assert!((remaining_percentage(gemini.weekly.percentage) - 99.50856566429138).abs() < 0.001);
+        assert!((remaining_percentage(gemini.session.percentage) - 99.89055395126343).abs() < 0.001);
+        assert_eq!(remaining_percentage(claude.weekly.percentage), 0.0);
+        assert!(claude.session_disabled);
     }
 
     #[test]
