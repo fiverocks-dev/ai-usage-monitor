@@ -351,9 +351,7 @@ fn fetch_antigravity_cli_usage() -> Option<AntigravityUsage> {
     parse_antigravity_cli_usage(&result)
 }
 
-fn parse_antigravity_cli_usage(
-    result: &serde_json::Value,
-) -> Option<AntigravityUsage> {
+fn parse_antigravity_cli_usage(result: &serde_json::Value) -> Option<AntigravityUsage> {
     let groups = result.pointer("/command/data/groups")?.as_array()?;
     let mut gemini = None;
     let mut claude = None;
