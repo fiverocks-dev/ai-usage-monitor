@@ -20,4 +20,5 @@ pub struct AppUsageData {
     pub codex: Option<UsageData>,
     pub antigravity: Option<UsageData>,
     pub antigravity_claude: Option<UsageData>,
+    pub antigravity_argon: Option<UsageData>,
 }
