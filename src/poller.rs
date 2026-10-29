@@ -225,10 +225,7 @@ fn poll_with(
     show_antigravity: bool,
     mut poll_claude_code: impl FnMut() -> Result<UsageData, PollError>,
     mut poll_codex: impl FnMut() -> Result<UsageData, PollError>,
-    mut poll_antigravity: impl FnMut() -> Result<
-        (Option<UsageData>, Option<UsageData>, Option<UsageData>),
-        PollError,
-    >,
+    mut poll_antigravity: impl FnMut() -> Result<AntigravityUsage, PollError>,
 ) -> Result<AppUsageData, PollError> {
     let mut data = AppUsageData::default();
     let mut first_error = None;
@@ -312,8 +309,9 @@ fn poll_codex() -> Result<UsageData, PollError> {
     fetch_codex_usage(&creds.access_token, creds.account_id.as_deref())
 }
 
-fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>, Option<UsageData>), PollError>
-{
+type AntigravityUsage = (Option<UsageData>, Option<UsageData>, Option<UsageData>);
+
+fn poll_antigravity() -> Result<AntigravityUsage, PollError> {
     // Prefer the CLI's account-scoped quota groups; it exposes the same
     // remaining_fraction and disabled state as the Antigravity Usage screen.
     if let Some(data) = fetch_antigravity_cli_usage() {
@@ -330,8 +328,7 @@ fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>, Option<Us
     fetch_antigravity_usage(&creds.access_token).map(|(gemini, claude)| (gemini, claude, None))
 }
 
-fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>, Option<UsageData>)>
-{
+fn fetch_antigravity_cli_usage() -> Option<AntigravityUsage> {
     let cli_path = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .map(|path| path.join("agy").join("bin").join("agy.exe"))
@@ -356,7 +353,7 @@ fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>
 
 fn parse_antigravity_cli_usage(
     result: &serde_json::Value,
-) -> Option<(Option<UsageData>, Option<UsageData>, Option<UsageData>)> {
+) -> Option<AntigravityUsage> {
     let groups = result.pointer("/command/data/groups")?.as_array()?;
     let mut gemini = None;
     let mut claude = None;
@@ -381,10 +378,14 @@ fn parse_antigravity_cli_usage(
                     .and_then(|v| v.as_f64())
                     .filter(|value| value.is_finite())
                 {
-                    let mut usage = UsageData::default();
-                    usage.weekly = UsageSection {
-                        percentage: (1.0 - remaining.clamp(0.0, 1.0)) * 100.0,
-                        resets_at: parse_iso8601(bucket.get("reset_time").and_then(|v| v.as_str())),
+                    let usage = UsageData {
+                        weekly: UsageSection {
+                            percentage: (1.0 - remaining.clamp(0.0, 1.0)) * 100.0,
+                            resets_at: parse_iso8601(
+                                bucket.get("reset_time").and_then(|v| v.as_str()),
+                            ),
+                        },
+                        ..UsageData::default()
                     };
                     diagnose::log(format!(
                         "Antigravity CLI Argon weekly remaining_pct={:.2}",
