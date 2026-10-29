@@ -348,7 +348,10 @@ fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>
     let mut gemini = None;
     let mut claude = None;
     for group in groups {
-        let name = group.get("name").and_then(|v| v.as_str()).unwrap_or_default();
+        let name = group
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
         let Some(buckets) = group.get("buckets").and_then(|v| v.as_array()) else {
             continue;
         };
@@ -370,7 +373,9 @@ fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>
             let window = bucket.get("window").and_then(|v| v.as_str());
             let disabled = bucket.get("disabled").and_then(|v| v.as_bool()) == Some(true);
             if disabled {
-                diagnose::log(format!("Antigravity CLI disabled quota window: group={name} window={window:?}"));
+                diagnose::log(format!(
+                    "Antigravity CLI disabled quota window: group={name} window={window:?}"
+                ));
                 continue;
             }
             let Some(remaining) = bucket.get("remaining_fraction").and_then(|v| v.as_f64()) else {
@@ -384,8 +389,14 @@ fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>
                 resets_at: parse_iso8601(bucket.get("reset_time").and_then(|v| v.as_str())),
             };
             match window {
-                Some("5h") => { usage.session = section; found = true; }
-                Some("weekly") => { usage.weekly = section; found = true; }
+                Some("5h") => {
+                    usage.session = section;
+                    found = true;
+                }
+                Some("weekly") => {
+                    usage.weekly = section;
+                    found = true;
+                }
                 _ => {}
             }
         }
