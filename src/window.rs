@@ -1264,12 +1264,16 @@ fn refresh_antigravity_family_texts(
     weekly_text: &mut String,
 ) {
     if let Some(usage) = usage {
-        *session_text = poller::format_line(
-            &usage.session,
-            strings,
-            show_absolute_reset_time,
-            poller::UsageWindowKind::Session,
-        );
+        *session_text = if usage.session_disabled {
+            "--".to_string()
+        } else {
+            poller::format_line(
+                &usage.session,
+                strings,
+                show_absolute_reset_time,
+                poller::UsageWindowKind::Session,
+            )
+        };
         *weekly_text = if usage.weekly.resets_at.is_none() && usage.weekly.percentage == 0.0 {
             "--".to_string()
         } else {
@@ -2643,14 +2647,22 @@ fn do_poll(send_hwnd: SendHwnd) {
                     s.codex_weekly_percent = 0.0;
                 }
                 if let Some(antigravity) = data.antigravity.as_ref() {
-                    s.antigravity_gemini_session_percent = antigravity.session.percentage;
+                    s.antigravity_gemini_session_percent = if antigravity.session_disabled {
+                        100.0
+                    } else {
+                        antigravity.session.percentage
+                    };
                     s.antigravity_gemini_weekly_percent = antigravity.weekly.percentage;
                 } else if s.show_antigravity {
                     s.antigravity_gemini_session_percent = 0.0;
                     s.antigravity_gemini_weekly_percent = 0.0;
                 }
                 if let Some(antigravity) = data.antigravity_claude.as_ref() {
-                    s.antigravity_claude_session_percent = antigravity.session.percentage;
+                    s.antigravity_claude_session_percent = if antigravity.session_disabled {
+                        100.0
+                    } else {
+                        antigravity.session.percentage
+                    };
                     s.antigravity_claude_weekly_percent = antigravity.weekly.percentage;
                 } else if s.show_antigravity {
                     s.antigravity_claude_session_percent = 0.0;
@@ -4569,6 +4581,7 @@ mod tests {
                 resets_at: None,
             },
             weekly: crate::models::UsageSection::default(),
+            session_disabled: false,
         };
         assert_eq!(
             antigravity_gemini_tooltip("75% left", "--", true, true, Some(&usage), false),
