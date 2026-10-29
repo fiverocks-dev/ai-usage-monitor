@@ -986,7 +986,11 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     s.show_weekly_window,
                     s.weekly_first,
                 ));
-                if let Some(argon) = s.data.as_ref().and_then(|data| data.antigravity_argon.as_ref()) {
+                if let Some(argon) = s
+                    .data
+                    .as_ref()
+                    .and_then(|data| data.antigravity_argon.as_ref())
+                {
                     if s.show_weekly_window {
                         let weekly_text = poller::format_line(
                             &argon.weekly,
