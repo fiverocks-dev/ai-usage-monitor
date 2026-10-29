@@ -225,7 +225,10 @@ fn poll_with(
     show_antigravity: bool,
     mut poll_claude_code: impl FnMut() -> Result<UsageData, PollError>,
     mut poll_codex: impl FnMut() -> Result<UsageData, PollError>,
-    mut poll_antigravity: impl FnMut() -> Result<(Option<UsageData>, Option<UsageData>, Option<UsageData>), PollError>,
+    mut poll_antigravity: impl FnMut() -> Result<
+        (Option<UsageData>, Option<UsageData>, Option<UsageData>),
+        PollError,
+    >,
 ) -> Result<AppUsageData, PollError> {
     let mut data = AppUsageData::default();
     let mut first_error = None;
@@ -309,7 +312,8 @@ fn poll_codex() -> Result<UsageData, PollError> {
     fetch_codex_usage(&creds.access_token, creds.account_id.as_deref())
 }
 
-fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>, Option<UsageData>), PollError> {
+fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>, Option<UsageData>), PollError>
+{
     // Prefer the CLI's account-scoped quota groups; it exposes the same
     // remaining_fraction and disabled state as the Antigravity Usage screen.
     if let Some(data) = fetch_antigravity_cli_usage() {
@@ -326,7 +330,8 @@ fn poll_antigravity() -> Result<(Option<UsageData>, Option<UsageData>, Option<Us
     fetch_antigravity_usage(&creds.access_token).map(|(gemini, claude)| (gemini, claude, None))
 }
 
-fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>, Option<UsageData>)> {
+fn fetch_antigravity_cli_usage() -> Option<(Option<UsageData>, Option<UsageData>, Option<UsageData>)>
+{
     let cli_path = std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .map(|path| path.join("agy").join("bin").join("agy.exe"))
@@ -1821,22 +1826,17 @@ mod tests {
                 ]}
             ]}}
         });
-        let (gemini, claude, argon) =
-            parse_antigravity_cli_usage(&response).expect("quota groups");
+        let (gemini, claude, argon) = parse_antigravity_cli_usage(&response).expect("quota groups");
         let gemini = gemini.expect("Gemini quota");
         let claude = claude.expect("Claude quota");
-        assert!(
-            (remaining_percentage(gemini.weekly.percentage) - 99.50856566429138).abs() < 0.001
-        );
+        assert!((remaining_percentage(gemini.weekly.percentage) - 99.50856566429138).abs() < 0.001);
         assert!(
             (remaining_percentage(gemini.session.percentage) - 99.89055395126343).abs() < 0.001
         );
         assert_eq!(remaining_percentage(claude.weekly.percentage), 0.0);
         assert!(claude.session_disabled);
         let argon = argon.expect("Argon quota");
-        assert!(
-            (remaining_percentage(argon.weekly.percentage) - 18.730413913726807).abs() < 0.001
-        );
+        assert!((remaining_percentage(argon.weekly.percentage) - 18.730413913726807).abs() < 0.001);
     }
 
     #[test]
