@@ -10,6 +10,8 @@ pub struct UsageSection {
 pub struct UsageData {
     pub session: UsageSection,
     pub weekly: UsageSection,
+    /// True when the provider explicitly disables the 5-hour quota window.
+    pub session_disabled: bool,
 }
 
 #[derive(Clone, Debug, Default)]
