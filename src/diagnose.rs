@@ -14,8 +14,7 @@ pub fn init() -> Result<PathBuf, String> {
     let path = std::env::temp_dir().join("ai-usage.log");
     let file = OpenOptions::new()
         .create(true)
-        .write(true)
-        .truncate(true)
+        .append(true)
         .open(&path)
         .map_err(|e| format!("Unable to open diagnostic log file {}: {e}", path.display()))?;
 
@@ -23,7 +22,7 @@ pub fn init() -> Result<PathBuf, String> {
         file: Mutex::new(file),
     });
 
-    log("diagnostic logging enabled");
+    log("===== diagnostic session started =====");
     Ok(path)
 }
 
