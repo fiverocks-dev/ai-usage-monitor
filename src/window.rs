@@ -76,6 +76,7 @@ struct AppState {
     show_claude_code: bool,
     show_codex: bool,
     show_antigravity: bool,
+    show_argon: bool,
     show_session_window: bool,
     show_weekly_window: bool,
     weekly_first: bool,
@@ -143,6 +144,7 @@ const IDM_LANG_SIMPLIFIED_CHINESE: u16 = 51;
 const IDM_MODEL_CLAUDE_CODE: u16 = 60;
 const IDM_MODEL_CODEX: u16 = 61;
 const IDM_MODEL_ANTIGRAVITY: u16 = 62;
+const IDM_MODEL_ARGON: u16 = 63;
 const IDM_SHOW_SESSION_WINDOW: u16 = 71;
 const IDM_SHOW_WEEKLY_WINDOW: u16 = 72;
 const IDM_ORDER_SESSION_FIRST: u16 = 73;
@@ -523,6 +525,8 @@ struct SettingsFile {
     show_codex: bool,
     #[serde(default = "default_show_antigravity")]
     show_antigravity: bool,
+    #[serde(default)]
+    show_argon: bool,
     #[serde(default = "default_show_usage_window")]
     show_session_window: bool,
     #[serde(default = "default_show_usage_window")]
@@ -547,6 +551,7 @@ impl Default for SettingsFile {
             show_claude_code: false,
             show_codex: true,
             show_antigravity: false,
+            show_argon: false,
             show_session_window: true,
             show_weekly_window: true,
             weekly_first: false,
@@ -675,6 +680,7 @@ fn save_state_settings() {
             show_claude_code: s.show_claude_code,
             show_codex: s.show_codex,
             show_antigravity: s.show_antigravity,
+            show_argon: s.show_argon,
             show_session_window: s.show_session_window,
             show_weekly_window: s.show_weekly_window,
             weekly_first: s.weekly_first,
@@ -1778,6 +1784,17 @@ fn active_model_count(show_claude_code: bool, show_codex: bool, show_antigravity
     (show_claude_code as i32 + show_codex as i32 + (show_antigravity as i32 * 2)).max(1)
 }
 
+fn active_model_count_with_argon(
+    show_claude_code: bool,
+    show_codex: bool,
+    show_antigravity: bool,
+    show_argon: bool,
+    show_weekly_window: bool,
+) -> i32 {
+    active_model_count(show_claude_code, show_codex, show_antigravity)
+        + (show_antigravity && show_argon && show_weekly_window) as i32
+}
+
 fn row_bar_segment_count(active_models: i32) -> i32 {
     match active_models {
         1 => SEGMENT_COUNT,
@@ -1828,7 +1845,7 @@ fn total_widget_width_for_state(state: &AppState) -> i32 {
             state.show_claude_code,
             state.show_codex,
             state.show_antigravity,
-        ),
+        ) + (state.show_antigravity && state.show_argon && state.show_weekly_window) as i32,
         state.language,
     )
 }
@@ -1840,7 +1857,13 @@ fn total_widget_width() -> i32 {
             .as_ref()
             .map(|s| {
                 (
-                    active_model_count(s.show_claude_code, s.show_codex, s.show_antigravity),
+                    active_model_count_with_argon(
+                        s.show_claude_code,
+                        s.show_codex,
+                        s.show_antigravity,
+                        s.show_argon,
+                        s.show_weekly_window,
+                    ),
                     s.language,
                 )
             })
@@ -1983,7 +2006,7 @@ pub fn run() {
             settings.show_claude_code,
             settings.show_codex,
             settings.show_antigravity,
-        );
+        ) + (settings.show_antigravity && settings.show_argon && settings.show_weekly_window) as i32;
         let hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE,
             PCWSTR::from_raw(class_name.as_ptr()),
@@ -2054,6 +2077,7 @@ pub fn run() {
                 show_claude_code: settings.show_claude_code,
                 show_codex: settings.show_codex,
                 show_antigravity: settings.show_antigravity,
+                show_argon: settings.show_argon,
                 show_session_window: settings.show_session_window,
                 show_weekly_window: settings.show_weekly_window,
                 weekly_first: settings.weekly_first,
@@ -3602,7 +3626,7 @@ unsafe extern "system" fn wnd_proc(
                     }
                     save_state_settings();
                 }
-                IDM_MODEL_CLAUDE_CODE | IDM_MODEL_CODEX | IDM_MODEL_ANTIGRAVITY => {
+                IDM_MODEL_CLAUDE_CODE | IDM_MODEL_CODEX | IDM_MODEL_ANTIGRAVITY | IDM_MODEL_ARGON => {
                     {
                         let mut state = lock_state();
                         if let Some(s) = state.as_mut() {
@@ -3627,6 +3651,9 @@ unsafe extern "system" fn wnd_proc(
                                         || !s.show_antigravity =>
                                 {
                                     s.show_antigravity = !s.show_antigravity;
+                                }
+                                IDM_MODEL_ARGON if s.show_antigravity => {
+                                    s.show_argon = !s.show_argon;
                                 }
                                 _ => {}
                             }
@@ -3734,6 +3761,7 @@ fn show_context_menu(hwnd: HWND) {
             claude_code_available,
             show_codex,
             show_antigravity,
+            show_argon,
             show_session_window,
             show_weekly_window,
             weekly_first,
@@ -3753,6 +3781,7 @@ fn show_context_menu(hwnd: HWND) {
                     s.claude_code_available,
                     s.show_codex,
                     s.show_antigravity,
+                    s.show_argon,
                     s.show_session_window,
                     s.show_weekly_window,
                     s.weekly_first,
@@ -3767,6 +3796,7 @@ fn show_context_menu(hwnd: HWND) {
                     UpdateStatus::Idle,
                     true,
                     true,
+                    false,
                     false,
                     false,
                     false,
@@ -3861,6 +3891,21 @@ fn show_context_menu(hwnd: HWND) {
             antigravity_flags,
             IDM_MODEL_ANTIGRAVITY as usize,
             PCWSTR::from_raw(antigravity_model.as_ptr()),
+        );
+
+        let argon_model = native_interop::wide_str("Argon (7d)");
+        let argon_flags = if !show_antigravity {
+            MF_GRAYED
+        } else if show_argon {
+            MF_CHECKED
+        } else {
+            MENU_ITEM_FLAGS(0)
+        };
+        let _ = AppendMenuW(
+            models_menu,
+            argon_flags,
+            IDM_MODEL_ARGON as usize,
+            PCWSTR::from_raw(argon_model.as_ptr()),
         );
 
         let models_label = native_interop::wide_str(strings.models);
