@@ -997,7 +997,7 @@ fn tray_icon_data_from_state() -> Option<tray_icon::TrayIconData> {
                     .as_ref()
                     .and_then(|data| data.antigravity_argon.as_ref())
                 {
-                    if s.show_weekly_window {
+                    if s.show_argon && s.show_weekly_window {
                         let weekly_text = poller::format_line(
                             &argon.weekly,
                             strings,
@@ -2580,6 +2580,7 @@ fn paint_content(
                 show_claude_code,
                 show_codex,
                 show_antigravity,
+                show_argon && show_weekly_window,
                 accent,
                 codex_accent,
                 antigravity_gemini_accent,
@@ -2616,6 +2617,7 @@ fn paint_content(
                 show_claude_code,
                 show_codex,
                 show_antigravity,
+                show_argon && show_weekly_window,
                 accent,
                 codex_accent,
                 antigravity_gemini_accent,
@@ -3645,6 +3647,7 @@ unsafe extern "system" fn wnd_proc(
                         }
                     }
                     save_state_settings();
+                    position_at_taskbar();
                     render_layered();
                     sync_tray_icons(hwnd);
                 }
@@ -4400,6 +4403,7 @@ fn draw_row(
     show_claude_code: bool,
     show_codex: bool,
     show_antigravity: bool,
+    show_argon: bool,
     claude_accent: &Color,
     codex_accent: &Color,
     antigravity_gemini_accent: &Color,
@@ -4409,7 +4413,8 @@ fn draw_row(
     text_width: i32,
 ) {
     let seg_h = sc(SEGMENT_H);
-    let active_models = active_model_count(show_claude_code, show_codex, show_antigravity);
+    let active_models =
+        active_model_count(show_claude_code, show_codex, show_antigravity) + show_argon as i32;
     let segment_count = row_bar_segment_count(active_models);
     let use_model_text_colors = active_models > 1;
     let claude_value_color = if use_model_text_colors {
