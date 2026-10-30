@@ -2006,7 +2006,9 @@ pub fn run() {
             settings.show_claude_code,
             settings.show_codex,
             settings.show_antigravity,
-        ) + (settings.show_antigravity && settings.show_argon && settings.show_weekly_window) as i32;
+        ) + (settings.show_antigravity
+            && settings.show_argon
+            && settings.show_weekly_window) as i32;
         let hwnd = CreateWindowExW(
             WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_NOACTIVATE,
             PCWSTR::from_raw(class_name.as_ptr()),
@@ -2637,9 +2639,14 @@ fn paint_content(
                 + sc(LABEL_RIGHT_MARGIN)
                 + sc(TIME_SEPARATOR_WIDTH)
                 + sc(TIME_SEPARATOR_RIGHT_MARGIN)
-                + baseline_count * (model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN));
+                + baseline_count
+                    * (model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN));
             let row_y = if show_session_window {
-                if weekly_first { row1_y } else { row2_y }
+                if weekly_first {
+                    row1_y
+                } else {
+                    row2_y
+                }
             } else {
                 single_row_y
             };
@@ -3679,7 +3686,10 @@ unsafe extern "system" fn wnd_proc(
                     }
                     save_state_settings();
                 }
-                IDM_MODEL_CLAUDE_CODE | IDM_MODEL_CODEX | IDM_MODEL_ANTIGRAVITY | IDM_MODEL_ARGON => {
+                IDM_MODEL_CLAUDE_CODE
+                | IDM_MODEL_CODEX
+                | IDM_MODEL_ANTIGRAVITY
+                | IDM_MODEL_ARGON => {
                     {
                         let mut state = lock_state();
                         if let Some(s) = state.as_mut() {
