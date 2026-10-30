@@ -2216,6 +2216,8 @@ fn render_layered() {
         show_session_window,
         show_weekly_window,
         weekly_first,
+        show_argon,
+        argon_weekly,
     ) = {
         let state = lock_state();
         match state.as_ref() {
@@ -2247,6 +2249,11 @@ fn render_layered() {
                 s.show_session_window,
                 s.show_weekly_window,
                 s.weekly_first,
+                s.show_argon,
+                s.data
+                    .as_ref()
+                    .and_then(|data| data.antigravity_argon.as_ref())
+                    .map(|usage| usage.weekly.clone()),
             ),
             None => return,
         }
@@ -2351,6 +2358,8 @@ fn render_layered() {
             show_session_window,
             show_weekly_window,
             weekly_first,
+            show_argon,
+            argon_weekly.as_ref(),
             &codex_accent,
             &antigravity_gemini_accent,
             &antigravity_claude_accent,
@@ -2437,6 +2446,8 @@ fn paint_content(
     show_session_window: bool,
     show_weekly_window: bool,
     weekly_first: bool,
+    show_argon: bool,
+    argon_weekly: Option<&crate::models::UsageSection>,
     codex_accent: &Color,
     antigravity_gemini_accent: &Color,
     antigravity_claude_accent: &Color,
@@ -2611,6 +2622,45 @@ fn paint_content(
                 antigravity_claude_accent,
                 track,
                 label_width,
+                text_width,
+            );
+        }
+
+        // Argon is weekly-only. Reserve an optional model column, but never draw a 5h quota.
+        if show_antigravity && show_argon && show_weekly_window {
+            let baseline_count = active_model_count(show_claude_code, show_codex, show_antigravity);
+            let segment_count = row_bar_segment_count(baseline_count + 1);
+            let model_x = content_x
+                + sc(label_width)
+                + sc(LABEL_RIGHT_MARGIN)
+                + sc(TIME_SEPARATOR_WIDTH)
+                + sc(TIME_SEPARATOR_RIGHT_MARGIN)
+                + baseline_count * (model_usage_width(segment_count, text_width) + sc(MODEL_RIGHT_MARGIN));
+            let row_y = if show_session_window {
+                if weekly_first { row1_y } else { row2_y }
+            } else {
+                single_row_y
+            };
+            let argon_color = antigravity_gemini_accent;
+            let (percent, label) = if let Some(section) = argon_weekly {
+                (
+                    usage_percent_for_display(section.percentage),
+                    poller::format_line(section, strings, false, poller::UsageWindowKind::Weekly),
+                )
+            } else {
+                (0.0, "--".to_string())
+            };
+            draw_provider_badge(hdc, model_x, row_y, "AG-A", argon_color);
+            draw_usage_bar(
+                hdc,
+                model_x + sc(PROVIDER_BADGE_WIDTH) + sc(PROVIDER_BADGE_GAP),
+                row_y,
+                segment_count,
+                percent,
+                &label,
+                argon_color,
+                track,
+                text_color,
                 text_width,
             );
         }
@@ -4208,6 +4258,8 @@ fn paint(hdc: HDC, hwnd: HWND) {
         show_session_window,
         show_weekly_window,
         weekly_first,
+        show_argon,
+        argon_weekly,
     ) = {
         let state = lock_state();
         match state.as_ref() {
@@ -4237,6 +4289,11 @@ fn paint(hdc: HDC, hwnd: HWND) {
                 s.show_session_window,
                 s.show_weekly_window,
                 s.weekly_first,
+                s.show_argon,
+                s.data
+                    .as_ref()
+                    .and_then(|data| data.antigravity_argon.as_ref())
+                    .map(|usage| usage.weekly.clone()),
             ),
             None => return,
         }
@@ -4309,6 +4366,8 @@ fn paint(hdc: HDC, hwnd: HWND) {
             show_session_window,
             show_weekly_window,
             weekly_first,
+            show_argon,
+            argon_weekly.as_ref(),
             &codex_accent,
             &antigravity_gemini_accent,
             &antigravity_claude_accent,
