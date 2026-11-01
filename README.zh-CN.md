@@ -19,10 +19,10 @@
 - 显示当前**每周**用量窗口
 - 支持简体中文界面，明确显示剩余用量和重置倒计时
 - 可同时显示 Claude Code 用量
-- 可显示 Google 5 小时及每周 Gemini 配额窗口中的 Antigravity 模型用量
+- 独立显示 Antigravity **AG-G**（Gemini）和 **AG-C**（Claude/GPT）的 5 小时及每周配额，并可选择显示 **AG-A**（Argon）的每周配额
 - 实时显示各项限额的重置倒计时
 - 可在剩余配额为 10%、20% 或 30% 时发出提醒；每个重置窗口只提醒一次
-- 可分别控制 5 小时和每周用量行的显示
+- 可分别控制 5 小时和每周用量行的显示，并选择 `5h / 7d` 或 `7d / 5h` 排列顺序
 - 小巧的原生组件，直接嵌入 Windows 任务栏
 - 使用一个与桌面应用一致的系统托盘图标
 - 左键单击托盘图标可显示或隐藏任务栏组件
@@ -45,6 +45,7 @@ Antigravity 也是可选功能。若要显示其用量，请安装并登录 Goog
 - 已安装并完成身份验证的 Codex CLI 或 Codex 应用
 - 可选：已安装并完成身份验证的 Claude Code
 - 可选：若需查看 Antigravity 用量，需安装并登录 Google Antigravity
+- 建议同时安装并登录 `agy` CLI，以获取准确的分组配额；已使用 `agy 1.4.10` 验证。未安装或调用失败时，应用回退至现有 Google API，其数据可能不包含全部模型组或每周配额
 
 通过 WSL 使用 Claude Code 也受支持。监控器可以从 Windows 或 WSL 环境读取 Claude Code 凭据。
 
@@ -102,7 +103,9 @@ ai-usage
 - **Claude Code** 在已安装并登录 Claude Code CLI 时，可与 Codex 同时显示或单独显示
 - **Antigravity** 可与其他提供商同时显示，也可作为独立服务列单独显示
 
-显示多个服务时，每个服务都有自己的用量条和对应的文字颜色。Antigravity 会优先使用 Google 的 Gemini 配额摘要，必要时回退到模型配额数据。
+显示多个服务时，每个服务都有自己的用量条和对应的文字颜色。Antigravity 分别显示 **AG-G**（Gemini）与 **AG-C**（Claude/GPT）。可通过 **监控服务 > Argon (7d)** 选择是否显示 **AG-A** 的每周配额（默认关闭，设置会持久保存）。AG-A 仅在启用 Antigravity 和每周显示行时出现，不存在独立的 Argon 5 小时配额。若 Claude/GPT 的每周配额已耗尽，停用的 5 小时窗口会显示为 `--`，而不是误导性的百分比。
+
+Antigravity 优先读取本机 `agy -p "/usage" --output-format json` 的结构化配额数据，包括各组剩余比例、重置时间和 `disabled` 状态。若 CLI 不可用、执行失败或返回的数据不完整，则回退至既有的 Google Cloud Code API；该回退结果可能缺少部分模型组或窗口。技术细节、验证记录与限制参见 [Antigravity 配额收集说明](docs/antigravity-quota.md)。
 
 Claude 桌面客户端与 Claude Code CLI 使用相互独立的本地登录状态。只登录 Claude 桌面客户端不会启用 Claude Code 监控。检测不到受支持的 Claude Code CLI 凭据时，菜单会以禁用状态显示 **Claude Code（需登录 CLI）**，并自动关闭该服务。
 
@@ -114,7 +117,7 @@ Claude 桌面客户端与 Claude Code CLI 使用相互独立的本地登录状�
 
 ### 用量显示与提醒
 
-在右键菜单的**用量显示**中，可同时显示两个配额周期，也可只显示其中一个。应用始终会保留至少一行。
+在右键菜单的**用量显示**中，可同时显示两个配额周期，也可只显示其中一个；还可选择 `5h / 7d`（默认）或 `7d / 5h` 的排列顺序。应用始终会保留至少一行。
 
 在**配额提醒**中，可选择剩余配额为 10%、20% 或 30% 时提醒。提醒默认关闭。每个提供商的每个配额窗口只会提醒一次，直到重置时间发生变化；即使应用重启，也不会重复提醒。
 
@@ -163,13 +166,14 @@ Codex 用量来自本地 Codex 安装中已登录的账户。可选的 Claude Co
 - 如果设置了 `CLAUDE_CONFIG_DIR`，读取该目录中的 Claude Code 凭据文件
 - 必要时，已安装 WSL 发行版中的同一凭据文件
 - 启用 Codex 时，读取 `$CODEX_HOME/auth.json` 或 `~/.codex/auth.json` 中的本地 Codex 凭据
-- 启用 Antigravity 时，读取 Windows 凭据管理器中目标为 `gemini:antigravity` 的本地 OAuth 令牌
+- 启用 Antigravity 且 CLI 可用时，运行已安装的 `agy` CLI 并读取其配额 JSON 输出
+- 仅在 Antigravity API 回退路径下，读取 Windows 凭据管理器中目标为 `gemini:antigravity` 的本地 OAuth 令牌
 
 应用通过网络发送的请求：
 
 - 请求 Anthropic 的 Claude 端点，以读取用量和速率限制信息
 - 启用 Codex 时，请求 ChatGPT 的 Codex 用量端点，以读取 Codex 用量和速率限制信息
-- 启用 Antigravity 时，请求 Google Cloud Code / Antigravity 端点，以读取 Antigravity 配额信息
+- 启用 Antigravity 时，本机 `agy` CLI 可能自行向服务端发送已认证的配额请求；若 CLI 不可用，应用会使用 Google Cloud Code / Antigravity API 回退路径
 - 仅在使用软件更新检查或自更新功能时请求 GitHub
 - 如果设置了 `HTTPS_PROXY`、`HTTP_PROXY` 或 `ALL_PROXY` 等代理环境变量，上述出站请求可能通过代理发送
 
@@ -207,7 +211,7 @@ Codex 用量来自本地 Codex 安装中已登录的账户。可选的 Claude Co
 监控器会：
 
 1. 查找已启用模型的登录凭据
-2. 从 Anthropic、ChatGPT 和/或 Google Antigravity 端点读取当前用量
+2. 从 Anthropic 与 ChatGPT 端点读取用量；对 Antigravity 优先使用本机 `agy` CLI 的结构化输出，必要时回退至 Google API
 3. 将结果直接显示在 Windows 任务栏中
 4. 保持组件与所选任务栏及托盘区域对齐
 5. 在后台定期刷新
