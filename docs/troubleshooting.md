@@ -31,6 +31,19 @@ The log is written to `%TEMP%\ai-usage.log`. It includes:
 
 The log does not include access tokens, refresh tokens, credential file contents, or API response bodies.
 
+## Antigravity quota or Argon display issues
+
+The preferred quota source is the locally installed, signed-in `agy` CLI. The monitor invokes `agy -p "/usage" --output-format json` and falls back to the authenticated Google API if the CLI is absent or its result cannot be used. The fallback may omit Gemini weekly or Argon quotas.
+
+- Enable **Antigravity** under **Monitored services** to show AG-G (Gemini) and AG-C (Claude/GPT).
+- Enable **Monitored services > Argon (7d)** to opt in to AG-A; this is off by default. The **7d** row must also be enabled. Argon has no separate 5h quota.
+- Claude/GPT 5h may display `--` when its weekly quota has been exhausted. This reflects the upstream `disabled: true` state, not a missing credential.
+- Check CLI installation and version with `Get-Command agy` and `agy --version`. The verified installation used `agy 1.4.10`.
+- Compare quota with `agy -p "/usage" --output-format json`. Avoid sharing the unfiltered response envelope if it contains account details.
+- Start the app with `--diagnose` and look for `Antigravity CLI quota groups parsed successfully`, a disabled-window message, or a CLI failure/fallback message.
+
+If a regression occurs after the merged PRs #10/#11, open a **new issue** rather than reopening the merged PR. Include sanitized logs, Windows/app/CLI versions, affected model/window, and a screenshot of the visible behavior when helpful. See [Antigravity quota collection](antigravity-quota.md) for design, source limitations, and validation evidence.
+
 ## Update failures
 
 Direct installations and portable copies download only the exact `ai-usage.exe` asset and verify it against `ai-usage.exe.sha256` from the same GitHub Release. The updater keeps the previous EXE until the downloaded version has been installed and restarted successfully. If restart fails, the old EXE is restored.
