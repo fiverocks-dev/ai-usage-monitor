@@ -19,10 +19,10 @@ It sits in your taskbar and shows the remaining quota for the services you enabl
 - A **7d** bar for your current weekly window
 - Simplified Chinese display with explicit remaining usage and reset countdowns
 - Optional Claude Code usage alongside Codex
-- Optional Antigravity model usage bars for Google's 5-hour and weekly Gemini quota windows
+- Separate Antigravity **AG-G** (Gemini) and **AG-C** (Claude/GPT) 5-hour and weekly quota bars, plus optional **AG-A** (Argon) weekly-only bar
 - A live countdown until each limit resets
 - Optional low-quota alerts at 10%, 20%, or 30% remaining, deduplicated per reset window
-- Independent display controls for the 5-hour and weekly rows
+- Independent display controls for the 5-hour and weekly rows, including selectable `5h / 7d` or `7d / 5h` order
 - A small native widget that lives directly in the Windows taskbar
 - One system tray icon that matches the desktop app icon
 - Left-click the tray icon to toggle the taskbar widget on or off
@@ -45,6 +45,7 @@ It works best if you want a simple "how close am I to the limit?" display that i
 - Codex CLI or Codex app installed and authenticated
 - Optional: Claude Code installed and authenticated
 - Optional: Google Antigravity installed and authenticated, if you want Antigravity usage
+- Recommended for accurate Antigravity quotas: signed-in `agy` CLI (verified with version 1.4.10). Without it, the app uses the older Google API fallback, which may not provide all model groups or weekly values
 
 If you use Claude Code through WSL, that is supported too. The monitor can read your Claude Code credentials from Windows or from your WSL environment.
 
@@ -102,7 +103,9 @@ Use the right-click **Monitored services** menu to choose which independent serv
 - **Claude Code** can be enabled alongside Codex or shown by itself when Claude Code CLI is installed and authenticated
 - **Antigravity** can be enabled alongside the other providers or shown by itself as its own service column
 
-When multiple services are shown, each service has its own usage bar and matching usage text color. Antigravity prefers Google's Gemini quota summary when available and falls back to model quota data when needed.
+When multiple services are shown, each service has its own usage bar and matching usage text color. Antigravity uses separate columns for **AG-G** (Gemini) and **AG-C** (Claude/GPT). In **Monitored services > Argon (7d)**, optionally enable the independent **AG-A** weekly-only column (off by default; persisted across restarts). AG-A appears only when Antigravity and the 7-day row are enabled; there is no Argon 5-hour quota. When Claude/GPT's weekly limit is exhausted, its disabled 5-hour quota is shown as `--` rather than a misleading percentage.
+
+For Antigravity, the monitor first launches the local `agy` CLI in noninteractive print mode (`agy -p "/usage" --output-format json`) and parses its structured quota groups, remaining fractions, reset times, and `disabled` state. The CLI is given a bounded execution time; if it is absent, fails, or returns unusable data, the monitor falls back to the legacy authenticated Google Cloud Code API. That fallback may expose fewer groups or different values; Argon is not inferred from the Gemini group. See [Antigravity quota collection](docs/antigravity-quota.md).
 
 Claude Desktop and Claude Code CLI use separate local sessions. Signing in to Claude Desktop does not enable Claude Code monitoring. When no supported Claude Code CLI credentials are available, the menu shows **Claude Code (CLI login required)** as a disabled item and automatically keeps that service off.
 
@@ -114,7 +117,7 @@ Hovering over the tray icon shows a compact summary for all enabled services. Le
 
 ### Usage Display And Alerts
 
-Use the right-click **Usage display** menu to show both quota rows or only one. The app always keeps at least one row visible.
+Use the right-click **Usage display** menu to show both quota rows or only one, and to choose between `5h / 7d` (default) and `7d / 5h` display order. The app always keeps at least one row visible.
 
 Use **Quota alerts** to choose a remaining-quota threshold of 10%, 20%, or 30%. Alerts are off by default. Each provider and quota window is notified only once until its reset time changes, including across app restarts.
 
@@ -163,13 +166,14 @@ What the app reads:
 - If `CLAUDE_CONFIG_DIR` is set, the Claude Code credentials file in that directory
 - If needed, the same credentials file inside an installed WSL distro
 - If Codex is enabled, your local Codex credentials from `$CODEX_HOME/auth.json` or `~/.codex/auth.json`
-- If Antigravity is enabled, your local Antigravity OAuth token from Windows Credential Manager target `gemini:antigravity`
+- If Antigravity is enabled and the CLI path succeeds, the app runs the locally installed `agy` CLI and reads only its quota JSON output
+- For Antigravity API fallback, the local OAuth token from Windows Credential Manager target `gemini:antigravity`
 
 What the app sends over the network:
 
 - Requests to Anthropic's Claude endpoints to read your usage and rate-limit information
 - Requests to ChatGPT's Codex usage endpoint to read your Codex usage and rate-limit information, if Codex is enabled
-- Requests to Google's Cloud Code / Antigravity endpoints to read your Antigravity quota information, if Antigravity is enabled
+- Antigravity's `agy` CLI may make its own authenticated service requests when invoked to retrieve quota; if unavailable, the monitor makes authenticated requests to Google's Cloud Code / Antigravity endpoints
 - Requests to GitHub only if you use the app's update check / self-update feature
 - If proxy environment variables such as `HTTPS_PROXY`, `HTTP_PROXY`, or `ALL_PROXY` are set, those outbound requests may use that proxy
 
@@ -207,7 +211,7 @@ Notes:
 The monitor:
 
 1. Finds your enabled model login credentials
-2. Reads your current usage from Anthropic, ChatGPT, and/or Google's Antigravity endpoints
+2. Reads current usage from Anthropic and ChatGPT endpoints, and for Antigravity prefers structured output from the installed `agy` CLI with an authenticated Google API fallback
 3. Shows the result directly in the Windows taskbar
 4. Keeps the widget aligned with the selected taskbar and tray area
 5. Refreshes periodically in the background
